@@ -1,5 +1,5 @@
 {
-  "name": "flood-processor",
+  "name": "floodway",
   "version": "1.0.0",
   "description": "Processing service used by Floodway systems",
   "main": "./build/main.js",
