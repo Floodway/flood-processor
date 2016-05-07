@@ -2,7 +2,7 @@
   "name": "floodway",
   "version": "1.0.0",
   "description": "Processing service used by Floodway systems",
-  "main": "./build/main.js",
+  "main": "./build/core.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
