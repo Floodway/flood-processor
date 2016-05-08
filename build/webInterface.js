@@ -76,12 +76,13 @@ WebInterface = (function(superClass) {
           l.error("Invalid url: " + split);
           return res.end(JSON.stringify({
             messageType: "error",
-            error: "invalidRequest"
+            error: {
+              errorCode: "invalidRequest"
+            }
           }));
         }
         namespace = split[0];
         action = split[1];
-        params = _.assign(location.query, params);
         constructRequest = function(session) {
           var request;
           request = new Request({
@@ -102,16 +103,21 @@ WebInterface = (function(superClass) {
           });
           _this.requests.push(request);
           _this.processor.processRequest(request);
-          return request.on("done", function() {
+          request.once("done", function() {
             return _this.requests.splice(_this.requests.indexOf(request), 1);
+          });
+          return req.once("close", function() {
+            return request.emit("done");
           });
         };
         createSession = function() {
-          return Session.createSession(this.processor.db, function(err, session) {
+          return Session.createSession(_this.processor.db, function(err, session) {
             if (err != null) {
               return res.end(JSON.stringify({
                 messageType: "error",
-                error: "internalError"
+                error: {
+                  errorCode: "internalError"
+                }
               }));
             }
             l.log("Setting header");

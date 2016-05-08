@@ -7,45 +7,42 @@ EventEmitter = require("events").EventEmitter;
 Request = (function(superClass) {
   extend(Request, superClass);
 
-
-  /*
-    REQUEST CLASS
-  
-    Properties:
-  
-      namespace: String
-      action: String
-      params: mixed
-  
-      supportsUpdates: boolean
-  
-  
-    Methods:
-  
-      sendData: (mixed)
-  
-  
-    Events:
-      cancel
-   */
-
   function Request(params) {
-    this.namespace = params.namespace, this.params = params.params, this.action = params.action, this.sendData = params.sendData, this.suppportsUpdates = params.suppportsUpdates, this.session = params.session;
+    this.namespace = params.namespace, this.params = params.params, this.action = params.action, this.sendData = params.sendData, this.supportsUpdates = params.supportsUpdates, this.session = params.session;
+    this.failed = false;
+    if (this.supportsUpdates) {
+      this.once("done", (function(_this) {
+        return function() {
+          console.log("Request done..");
+          return _this.sendData({
+            messageType: "done"
+          });
+        };
+      })(this));
+    }
   }
 
   Request.prototype.send = function(data) {
-    this.sendData(data);
-    if (!this.suppportsUpdates) {
+    if (!this.failed) {
+      this.sendData({
+        messageType: "response",
+        data: data
+      });
+    }
+    if (!this.supportsUpdates) {
       return this.emit("done");
     }
   };
 
-  Request.prototype.fail = function(error) {
-    this.sendData({
-      messageType: "error",
-      error: error
-    });
-    return this.emit("done");
+  Request.prototype.failRaw = function(error) {
+    if (!this.failed) {
+      this.sendData({
+        messageType: "error",
+        error: error
+      });
+      this.emit("done");
+      return this.failed = true;
+    }
   };
 
   return Request;
