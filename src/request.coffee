@@ -2,28 +2,6 @@ EventEmitter =require("events").EventEmitter
 
 class Request extends EventEmitter
 
-  ###
-    REQUEST CLASS
-
-    Properties:
-
-      namespace: String
-      action: String
-      params: mixed
-
-      supportsUpdates: boolean
-
-
-    Methods:
-
-      sendData: (mixed)
-
-
-    Events:
-      cancel
-
-  ###
-
   constructor: (params) ->
     
     {
@@ -31,11 +9,20 @@ class Request extends EventEmitter
       @params 
       @action 
       @sendData 
-      @suppportsUpdates
+      @supportsUpdates
       @session
     } = params
 
     @failed = false
+
+    if @supportsUpdates
+
+      @once("done", =>
+        console.log "Request done.."
+        @sendData(
+          messageType: "done"
+        )
+      )
 
   send: (data) ->
     if not @failed
@@ -44,7 +31,7 @@ class Request extends EventEmitter
         data: data
       )
 
-    if not @suppportsUpdates then @emit("done")
+    if not @supportsUpdates then @emit("done")
 
   failRaw: (error) ->
     if not @failed

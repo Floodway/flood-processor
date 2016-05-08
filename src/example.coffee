@@ -27,7 +27,7 @@ app.namespace(
   
   actions:
     helloWorld:
-      supportsUpdates: false
+      supportsUpdates: true
       result:
         data: { type: "string" }
       description: "Prints out hello world"
@@ -36,10 +36,14 @@ app.namespace(
       
       
       process: ({ req , res ,ev }) ->
+
         ev.on("test:saved", ({ saved }) ->
+          
           res(
             data: saved
           )
+
+
         )
         
         
@@ -77,5 +81,13 @@ app.namespace(
         )
 
 )
+
+app.namespace(require("./crudNamespace.coffee")(
+  schema:
+    username: { type: "string"}
+    age: { type: "number"}
+  table: "people"
+  name: "people"
+))
 
 

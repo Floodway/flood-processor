@@ -154,7 +154,6 @@ class FloodProcessor extends EventEmitter
           params: params
       ))
       l.log("Sending event: "+name)
-      console.log @listeners
       for listener in @listeners
         do(listener) ->
 
@@ -320,7 +319,7 @@ class FloodProcessor extends EventEmitter
                     request.failRaw(_.extend(meta,moreInfo,{ errorCode: errorCode }))
 
 
-                result = (data) ->
+                result = (data,final=false) ->
 
                   validator.validate(data,{ type: "object", children: action.result, mode: "shorten" },(err,newData) =>
 
@@ -336,6 +335,10 @@ class FloodProcessor extends EventEmitter
                       request.send(newData)
 
                   )
+
+                  if final or not action.supportsUpdates then request.emit("done")
+
+
 
                 # Event stuff
                 events = new RequestEventEmitter(@,request.namespace)

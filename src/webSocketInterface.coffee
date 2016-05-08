@@ -2,7 +2,8 @@ WsServer = require("ws").Server
 EventEmitter = require("events").EventEmitter
 cookie =require("cookie")
 l = require("./log")
-
+Session = require("./session")
+Request = require("./request")
 
 class WebSocketInterface extends  EventEmitter
 
@@ -35,18 +36,16 @@ class WebSocketInterface extends  EventEmitter
 
       @processor = @config.processor
 
+      @server.on("connection",@handleConnection)
+
 
     verifyClient: (info,callback) =>
       # Check cookies
-      console.log info.req.headers
 
       if info.req.headers["cookie"]?
         cookies = cookie.parse(info.req.headers.cookie)
-        console.log cookies
         if cookies["flood-ssid"]? and cookies["flood-ssid"].length == 36
-          console.log "Valid ssid"
           if @config.allowedOrigins.length == 0 or @config.allowedOrigins[0] == "*"
-            console.log "Ignoring origin.."
             return callback(true)
 
           else
@@ -58,7 +57,9 @@ class WebSocketInterface extends  EventEmitter
 
       callback(false,403,"requiresSessionId")
 
-    handleConnection: (connection) ->
+    handleConnection: (connection) =>
+
+      console.log "Connected..."
 
       # Get ssid
 
@@ -75,12 +76,21 @@ class WebSocketInterface extends  EventEmitter
           connection.close(1008)
         else
 
+          connection.on("close", =>
+            console.log "Closing.."
+            for request in connection.requests
+              request.emit("done")
+            connection.requests = []
+          )
+
+
           connection.on("message", (message) =>
             try 
               data = JSON.parse(message.toString())
             catch e 
               l.error("Invalid message: "+e)
-              
+
+
             if data?
               
               if data.requestId? and data.messageType?
@@ -95,10 +105,12 @@ class WebSocketInterface extends  EventEmitter
                       params: data.params
                       session: session
                       supportsUpdates: true
-                      sendData: (toBeSend) ->
-                        toBeSend.requestId = data.requestId
+                      sendData: (toBeSent) ->
+                        toBeSent.requestId = data.requestId
+
                         try
-                          connection.send(JSON.stringify(toBeSend))
+                          connection.send(JSON.stringify(toBeSent))
+
                         catch e
                           l.error("Error while sending data back to client: "+e)
 
@@ -110,11 +122,10 @@ class WebSocketInterface extends  EventEmitter
                     connection.requests.push(request)
 
 
-
                     @processor.processRequest(request)
 
                     request.on("done", =>
-                      connection.requests.splice(@requests.indexOf(request),1)
+                      connection.requests.splice(connection.requests.indexOf(request),1)
                     )
 
                   when "cancelRequest"

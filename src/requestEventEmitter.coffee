@@ -27,6 +27,8 @@ class RequestEventEmitter
     @on(name,done)
 
   clearUp: () ->
+    console.log "Cleanup..."
+    @emitEvent("cleanUp")
     @listeners = {}
 
   emitEvent: (name,params) ->

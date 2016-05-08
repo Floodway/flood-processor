@@ -25,7 +25,7 @@
   },
   "dependencies": {
     "cookie": "^0.2.3",
-    "flood-gate": "^1.0.0",
+    "flood-gate": "^1.0.3",
     "lodash": "^4.11.1",
     "md5": "^2.1.0",
     "rethinkdb": "^2.3.1",
