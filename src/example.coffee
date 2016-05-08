@@ -82,7 +82,7 @@ app.namespace(
 
 )
 
-app.namespace(require("./crudNamespace.coffee")(
+app.namespace(FloodProcessor.CrudNamespace(
   schema:
     username: { type: "string"}
     age: { type: "number"}

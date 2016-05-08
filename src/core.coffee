@@ -9,20 +9,12 @@ _ = require("lodash")
 fs = require("fs")
 WebInterface = require("./webInterface")
 WebSocketInterface = require("./webSocketInterface")
-###
-  Todo:
-    - Connect to event server
-    - Register namespaces
-    - Register actions
-    - Construct interfaces
-    - Database connection
-    - Validate source-code
-    - Generate Documentation?
 
-###
 
 class FloodProcessor extends EventEmitter
 
+    
+    @CrudNamespace: require("./crudNamespace")
 
     constructor: (config) ->
 
@@ -50,7 +42,7 @@ class FloodProcessor extends EventEmitter
 
           ws:
             enabled: true
-
+            allowedOrigins: ["*"]
             port: null
             useHtttp: true
 
@@ -251,13 +243,17 @@ class FloodProcessor extends EventEmitter
 
       # Todo: construct interfaces
 
-      @webInterface = new WebInterface(@config.interfaces.http.port,this)
+      if @config.interfaces.http.enabled
 
-      @webSocketInterface = new WebSocketInterface(
-        processor: @
-        server: @webInterface.getServer()
-        allowedOrigins: ["*"]
-      )
+        @webInterface = new WebInterface(@config.interfaces.http.port,this)
+
+      if @config.interfaces.ws.enabled
+
+        @webSocketInterface = new WebSocketInterface(
+          processor: @
+          server: if @config.interfaces.ws.useHtttp then @webInterface.getServer() else null
+          allowedOrigins: @config.interfaces.ws.allowedOrigins
+        )
 
       @webInterface.listen()
 
