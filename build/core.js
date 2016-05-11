@@ -28,6 +28,10 @@ FloodProcessor = (function(superClass) {
 
   FloodProcessor.CrudNamespace = require("./crudNamespace");
 
+  FloodProcessor.prototype.isFloodProcessor = function() {
+    return true;
+  };
+
   function FloodProcessor(config) {
     this.nextMiddleware = bind(this.nextMiddleware, this);
     var ref, ref1, ref2;
@@ -55,45 +59,11 @@ FloodProcessor = (function(superClass) {
         }
       }
     };
-    this.eventSocket = new WebSocket("" + (this.config.eventServer.useWss ? "wss://" : "ws://") + this.config.eventServer.ip + ":" + this.config.eventServer.port);
-    this.eventSocket.on("error", (function(_this) {
-      return function(err) {
-        return _this.shutdown("Unable to connect to event server");
-      };
-    })(this));
-    this.eventSocket.on("open", (function(_this) {
-      return function() {
-        l.success("Connection to event server instantiated");
-        _this.sendEvent({
-          messageType: "init",
-          params: {
-            type: "processor"
-          }
-        });
-        return _this.connectToDb();
-      };
-    })(this));
-    this.eventSocket.on("message", (function(_this) {
-      return function(message) {
-        var data, e, error1;
-        try {
-          data = JSON.parse(message.toString());
-        } catch (error1) {
-          e = error1;
-          l.error("Invalid message from Event server: " + (message.toString()));
-        }
-        if (data != null) {
-          return _this.processEventMessage(data);
-        }
-      };
-    })(this));
-    this.eventSocket.on("close", function() {
-      return this.shutdown("Event Server shutdown");
-    });
     this.namespace(require("./mainNamespace"));
+    this.validateIntegrity();
   }
 
-  FloodProcessor.prototype.connectToDb = function() {
+  FloodProcessor.prototype.connectToDb = function(callback) {
     return r.connect(this.config.db, (function(_this) {
       return function(err, conn) {
         if (err != null) {
@@ -101,7 +71,7 @@ FloodProcessor = (function(superClass) {
         }
         _this.db = conn;
         _this.checkDb();
-        return _this.start();
+        return callback();
       };
     })(this));
   };
@@ -281,19 +251,51 @@ FloodProcessor = (function(superClass) {
   };
 
   FloodProcessor.prototype.start = function() {
-    this.validateIntegrity();
-    if (this.config.interfaces.http.enabled) {
-      this.webInterface = new WebInterface(this.config.interfaces.http.port, this);
-    }
-    if (this.config.interfaces.ws.enabled) {
-      this.webSocketInterface = new WebSocketInterface({
-        processor: this,
-        server: this.config.interfaces.ws.useHtttp ? this.webInterface.getServer() : null,
-        allowedOrigins: this.config.interfaces.ws.allowedOrigins
-      });
-    }
-    this.webInterface.listen();
-    return this.generateDocumentation();
+    this.eventSocket = new WebSocket("" + (this.config.eventServer.useWss ? "wss://" : "ws://") + this.config.eventServer.ip + ":" + this.config.eventServer.port);
+    this.eventSocket.on("error", (function(_this) {
+      return function(err) {
+        return _this.shutdown("Unable to connect to event server");
+      };
+    })(this));
+    return this.eventSocket.on("open", (function(_this) {
+      return function() {
+        l.success("Connection to event server instantiated");
+        _this.sendEvent({
+          messageType: "init",
+          params: {
+            type: "processor"
+          }
+        });
+        return _this.connectToDb(function() {
+          _this.eventSocket.on("message", function(message) {
+            var data, e, error1;
+            try {
+              data = JSON.parse(message.toString());
+            } catch (error1) {
+              e = error1;
+              l.error("Invalid message from Event server: " + (message.toString()));
+            }
+            if (data != null) {
+              return _this.processEventMessage(data);
+            }
+          });
+          _this.eventSocket.on("close", function() {
+            return this.shutdown("Event Server shutdown");
+          });
+          if (_this.config.interfaces.http.enabled) {
+            _this.webInterface = new WebInterface(_this.config.interfaces.http.port, _this);
+          }
+          if (_this.config.interfaces.ws.enabled) {
+            _this.webSocketInterface = new WebSocketInterface({
+              processor: _this,
+              server: _this.config.interfaces.ws.useHtttp ? _this.webInterface.getServer() : null,
+              allowedOrigins: _this.config.interfaces.ws.allowedOrigins
+            });
+          }
+          return _this.webInterface.listen();
+        });
+      };
+    })(this));
   };
 
   FloodProcessor.prototype.resolveMiddleware = function(currentNamespace, name) {

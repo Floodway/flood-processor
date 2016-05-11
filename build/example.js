@@ -101,3 +101,5 @@ app.namespace(FloodProcessor.CrudNamespace({
   table: "people",
   name: "people"
 }));
+
+module.exports = app;

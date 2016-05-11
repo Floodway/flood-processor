@@ -90,4 +90,4 @@ app.namespace(FloodProcessor.CrudNamespace(
   name: "people"
 ))
 
-
+module.exports = app

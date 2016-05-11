@@ -15,7 +15,9 @@ class FloodProcessor extends EventEmitter
 
     
     @CrudNamespace: require("./crudNamespace")
-
+    
+    isFloodProcessor: -> true
+    
     constructor: (config) ->
 
       @namespaces = {}
@@ -48,47 +50,11 @@ class FloodProcessor extends EventEmitter
 
         }
 
-      # Connect to the event server
-      @eventSocket = new WebSocket(
-        "#{ if @config.eventServer.useWss then "wss://" else "ws://" }#{ @config.eventServer.ip }:#{ @config.eventServer.port }"
-      )
-      
-      @eventSocket.on("error", (err) =>
-
-        @shutdown("Unable to connect to event server")
-      )
-
-      @eventSocket.on("open", =>
-        l.success("Connection to event server instantiated")
-
-        # Send init
-
-        @sendEvent(
-          messageType: "init"
-          params:
-            type: "processor"
-        )
-
-        @connectToDb()
-        
-      )
-
-      @eventSocket.on("message",(message) =>
-        try
-          data = JSON.parse(message.toString())
-        catch e
-          l.error("Invalid message from Event server: #{ message.toString() }")
-
-        if data? then @processEventMessage(data)
-      )
-
-      @eventSocket.on("close", ->
-        @shutdown("Event Server shutdown")
-      )
 
       @namespace(require("./mainNamespace"))
+      @validateIntegrity()
 
-    connectToDb: ->
+    connectToDb: (callback) ->
 
       r.connect(
         @config.db
@@ -98,7 +64,7 @@ class FloodProcessor extends EventEmitter
 
         @checkDb()
 
-        @start()
+        callback()
       )
 
     checkDb: ->
@@ -239,25 +205,65 @@ class FloodProcessor extends EventEmitter
       
     start: ->
 
-      @validateIntegrity()
 
-      # Todo: construct interfaces
+      # Connect to the event server
+      @eventSocket = new WebSocket(
+        "#{ if @config.eventServer.useWss then "wss://" else "ws://" }#{ @config.eventServer.ip }:#{ @config.eventServer.port }"
+      )
 
-      if @config.interfaces.http.enabled
+      @eventSocket.on("error", (err) =>
 
-        @webInterface = new WebInterface(@config.interfaces.http.port,this)
+        @shutdown("Unable to connect to event server")
+      )
 
-      if @config.interfaces.ws.enabled
+      @eventSocket.on("open", =>
+        l.success("Connection to event server instantiated")
 
-        @webSocketInterface = new WebSocketInterface(
-          processor: @
-          server: if @config.interfaces.ws.useHtttp then @webInterface.getServer() else null
-          allowedOrigins: @config.interfaces.ws.allowedOrigins
+        # Send init
+
+        @sendEvent(
+          messageType: "init"
+          params:
+            type: "processor"
         )
 
-      @webInterface.listen()
+        @connectToDb( =>
 
-      @generateDocumentation()
+          @eventSocket.on("message",(message) =>
+            try
+              data = JSON.parse(message.toString())
+            catch e
+              l.error("Invalid message from Event server: #{ message.toString() }")
+
+            if data? then @processEventMessage(data)
+          )
+
+          @eventSocket.on("close", ->
+            @shutdown("Event Server shutdown")
+          )
+
+
+
+
+          if @config.interfaces.http.enabled
+
+            @webInterface = new WebInterface(@config.interfaces.http.port,this)
+
+          if @config.interfaces.ws.enabled
+
+            @webSocketInterface = new WebSocketInterface(
+              processor: @
+              server: if @config.interfaces.ws.useHtttp then @webInterface.getServer() else null
+              allowedOrigins: @config.interfaces.ws.allowedOrigins
+            )
+
+          @webInterface.listen()
+
+
+        )
+
+      )
+
       
       
       
