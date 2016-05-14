@@ -135,6 +135,8 @@ class FloodProcessor extends EventEmitter
         if not action.possibleErrors? then action.possibleErrors = []
 
         if not action.middleware? then action.middleware = []
+        if not action.calls? then action.calls = []
+
 
         # Automatically add global middleware to this action.. Fancy!
         action.middleware = namespace.globalMiddleware.concat(action.middleware)

@@ -161,6 +161,9 @@ FloodProcessor = (function(superClass) {
       if (action.middleware == null) {
         action.middleware = [];
       }
+      if (action.calls == null) {
+        action.calls = [];
+      }
       action.middleware = namespace.globalMiddleware.concat(action.middleware);
     }
     this.namespaces[namespace.namespace] = namespace;
