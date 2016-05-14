@@ -345,9 +345,9 @@ class FloodProcessor extends EventEmitter
           errorCode: "unknownAction"
         )
 
-    processMiddleware: ({ middlwareList, session, params, callback , namespace }) ->
+    processMiddleware: ({ middlewareList, session, params, callback , namespace }) ->
 
-      if middlwareList.length == 0
+      if middlewareList.length == 0
 
         callback(null,params)
 
@@ -355,11 +355,11 @@ class FloodProcessor extends EventEmitter
 
       next = (params) ->
 
-        runMiddleware({ session, params , namespace, name: middlwareList[currentMiddleware], callback: (err,newParams) ->
+        runMiddleware({ session, params , namespace, name: middlewareList[currentMiddleware], callback: (err,newParams) ->
 
           if err? then return callback(err)
 
-          if currentMiddleware == middlwareList.length-1
+          if currentMiddleware == middlewareList.length-1
 
             callback(null,newParams)
 

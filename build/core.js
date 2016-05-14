@@ -385,9 +385,9 @@ FloodProcessor = (function(superClass) {
   };
 
   FloodProcessor.prototype.processMiddleware = function(arg) {
-    var callback, currentMiddleware, middlwareList, namespace, next, params, session;
-    middlwareList = arg.middlwareList, session = arg.session, params = arg.params, callback = arg.callback, namespace = arg.namespace;
-    if (middlwareList.length === 0) {
+    var callback, currentMiddleware, middlewareList, namespace, next, params, session;
+    middlewareList = arg.middlewareList, session = arg.session, params = arg.params, callback = arg.callback, namespace = arg.namespace;
+    if (middlewareList.length === 0) {
       callback(null, params);
     }
     currentMiddleware = 0;
@@ -396,12 +396,12 @@ FloodProcessor = (function(superClass) {
         session: session,
         params: params,
         namespace: namespace,
-        name: middlwareList[currentMiddleware],
+        name: middlewareList[currentMiddleware],
         callback: function(err, newParams) {
           if (err != null) {
             return callback(err);
           }
-          if (currentMiddleware === middlwareList.length - 1) {
+          if (currentMiddleware === middlewareList.length - 1) {
             return callback(null, newParams);
           } else {
             return next(newParams);
