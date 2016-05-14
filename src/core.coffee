@@ -226,24 +226,22 @@ class FloodProcessor extends EventEmitter
 
 
       @runAction({
-          params: request.params,
-          namespace: request.namespace,
-          name: request.action,
-          session: request.session,
-          onCleanUp
-      },callback: (err,data) ->
-
+        params: request.params,
+        namespace: request.namespace,
+        name: request.action,
+        session: request.session,
+        onCleanUp,
+        callback: (err, data) ->
           if err?
             request.failRaw(err)
             cleanUp()
           else
-
             request.send(data)
 
             if not request.supportsUpdates
               cleanUp()
 
-      )
+      })
 
     runAction: ({ params, namespace, name, session, callback, onCleanUp }) ->
 
