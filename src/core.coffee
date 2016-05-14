@@ -174,6 +174,9 @@ class FloodProcessor extends EventEmitter
               )
               
             @webInterface.listen()
+            
+            @runInitCode()
+            
           )
         ,true)
 
@@ -195,7 +198,15 @@ class FloodProcessor extends EventEmitter
         split = name.split(".")
 
         return @namespaces[split[0]].actions[split[1]]
-
+  
+    runInitCode: ->
+      
+      for name, namespace of @namespaces
+        
+        if namespace.onStart? then namespace.onStart({ events: @events, db: @db , processor: @ }) 
+        
+        
+        
     processRequest: (request) ->
 
       if not @namespaces[request.namespace]?
@@ -316,6 +327,8 @@ class FloodProcessor extends EventEmitter
                   session,
                   params,
                   listen,
+                  fail,
+                  db: @db,
                   run,
                   onCleanUp,
                   emit: @events.emit
@@ -392,7 +405,7 @@ class FloodProcessor extends EventEmitter
         else
           # Now run the middleware
 
-          middleware.process({ fail, on: @events.once, params , session , emit: @events.emit , callback: (params) -> callback(null,params) })
+          middleware.process({ fail, on: @events.once, params , session , db: @db,  emit: @events.emit , callback: (params) -> callback(null,params) })
 
       )
 

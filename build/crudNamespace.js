@@ -3,8 +3,12 @@ var r;
 r = require("rethinkdb");
 
 module.exports = function(crudParams) {
+  var schemas;
+  schemas = {};
+  schemas[crudParams.name] = crudParams.schema;
   return {
     namespace: crudParams.name,
+    schemas: schemas,
     actions: {
       create: {
         description: "Creates a new document of " + crudParams.name,
@@ -79,6 +83,7 @@ module.exports = function(crudParams) {
           toUpdate: {
             type: "object",
             mode: "partial",
+            useClass: crudParams.name,
             children: crudParams.schema
           }
         },

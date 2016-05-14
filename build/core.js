@@ -218,7 +218,8 @@ FloodProcessor = (function(superClass) {
               allowedOrigins: _this.config.interfaces.ws.allowedOrigins
             });
           }
-          return _this.webInterface.listen();
+          _this.webInterface.listen();
+          return _this.runInitCode();
         });
       };
     })(this), true);
@@ -242,6 +243,25 @@ FloodProcessor = (function(superClass) {
       split = name.split(".");
       return this.namespaces[split[0]].actions[split[1]];
     }
+  };
+
+  FloodProcessor.prototype.runInitCode = function() {
+    var name, namespace, ref, results;
+    ref = this.namespaces;
+    results = [];
+    for (name in ref) {
+      namespace = ref[name];
+      if (namespace.onStart != null) {
+        results.push(namespace.onStart({
+          events: this.events,
+          db: this.db,
+          processor: this
+        }));
+      } else {
+        results.push(void 0);
+      }
+    }
+    return results;
   };
 
   FloodProcessor.prototype.processRequest = function(request) {
@@ -362,6 +382,8 @@ FloodProcessor = (function(superClass) {
                   session: session,
                   params: params,
                   listen: listen,
+                  fail: fail,
+                  db: _this.db,
                   run: run,
                   onCleanUp: onCleanUp,
                   emit: _this.events.emit,
@@ -453,6 +475,7 @@ FloodProcessor = (function(superClass) {
             on: _this.events.once,
             params: params,
             session: session,
+            db: _this.db,
             emit: _this.events.emit,
             callback: function(params) {
               return callback(null, params);

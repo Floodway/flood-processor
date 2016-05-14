@@ -3,9 +3,16 @@ module.exports = (crudParams) ->
 
   # Generate a CRUD namespace
 
+  schemas = {}
+
+  schemas[crudParams.name] = crudParams.schema
+
   return {
 
     namespace: crudParams.name
+
+    schemas: schemas
+
 
     actions:
 
@@ -64,6 +71,7 @@ module.exports = (crudParams) ->
           toUpdate: {
             type: "object"
             mode: "partial"
+            useClass: crudParams.name
             children: crudParams.schema
           }
         }
