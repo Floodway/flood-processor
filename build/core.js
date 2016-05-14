@@ -274,8 +274,7 @@ FloodProcessor = (function(superClass) {
       namespace: request.namespace,
       name: request.action,
       session: request.session,
-      onCleanUp: onCleanUp
-    }, {
+      onCleanUp: onCleanUp,
       callback: function(err, data) {
         if (err != null) {
           request.failRaw(err);
