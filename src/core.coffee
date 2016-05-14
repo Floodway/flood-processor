@@ -252,7 +252,7 @@ class FloodProcessor extends EventEmitter
       if action?
 
         # Validate params
-        validator.validate(params,action.params,(err,params) =>
+        validator.validate(params,{type: "object", mode: action.validationMode ? "shorten" ,children: action.params },(err,params) =>
 
           if err?
             callback(
@@ -324,7 +324,7 @@ class FloodProcessor extends EventEmitter
                   emit: @events.emit
                   res: (data) ->
 
-                    validator.validate(data,action.result,(err,result) ->
+                    validator.validate(data,{ type: "object", children: action.result, mode: "shorten" },(err,result) ->
 
                       if err?
 
@@ -382,7 +382,7 @@ class FloodProcessor extends EventEmitter
 
           callback(_.extend(meta,moreInfo,{ errorCode: errorCode }))
 
-      validator.validate(params,middleware.params,(err,params) =>
+      validator.validate(params,{type: "object", mode: middleware.validationMode ? "ensure" ,children: middleware.params },(err,params) =>
         if err?
 
           callback(

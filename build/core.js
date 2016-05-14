@@ -290,11 +290,15 @@ FloodProcessor = (function(superClass) {
   };
 
   FloodProcessor.prototype.runAction = function(arg) {
-    var action, callback, name, namespace, onCleanUp, params, session;
+    var action, callback, name, namespace, onCleanUp, params, ref, session;
     params = arg.params, namespace = arg.namespace, name = arg.name, session = arg.session, callback = arg.callback, onCleanUp = arg.onCleanUp;
     action = this.resolveAction(namespace, name);
     if (action != null) {
-      return validator.validate(params, action.params, (function(_this) {
+      return validator.validate(params, {
+        type: "object",
+        mode: (ref = action.validationMode) != null ? ref : "shorten",
+        children: action.params
+      }, (function(_this) {
         return function(err, params) {
           if (err != null) {
             return callback({
@@ -306,7 +310,7 @@ FloodProcessor = (function(superClass) {
               middlewareList: action.middleware
             }, session, params, namespace, {
               callback: function(err, params) {
-                var actionName, errorCode, fail, i, len, listen, meta, ref, ref1, run, toRemove;
+                var actionName, errorCode, fail, i, len, listen, meta, ref1, ref2, run, toRemove;
                 if (err != null) {
                   return callback(err);
                 }
@@ -328,9 +332,9 @@ FloodProcessor = (function(superClass) {
                   return results;
                 });
                 fail = {};
-                ref = action.possibleErrors;
-                for (errorCode in ref) {
-                  meta = ref[errorCode];
+                ref1 = action.possibleErrors;
+                for (errorCode in ref1) {
+                  meta = ref1[errorCode];
                   fail[errorCode] = function(moreInfo) {
                     return callback(_.extend(meta, moreInfo, {
                       errorCode: errorCode
@@ -338,9 +342,9 @@ FloodProcessor = (function(superClass) {
                   };
                 }
                 run = {};
-                ref1 = action.calls;
-                for (i = 0, len = ref1.length; i < len; i++) {
-                  actionName = ref1[i];
+                ref2 = action.calls;
+                for (i = 0, len = ref2.length; i < len; i++) {
+                  actionName = ref2[i];
                   run[actionName] = function(callback) {
                     return _this.runAction(params, namespace, {
                       name: actionName
@@ -352,7 +356,11 @@ FloodProcessor = (function(superClass) {
                 return action.process(session, params, listen, run, onCleanUp, {
                   emit: _this.events.emit,
                   res: function(data) {
-                    return validator.validate(data, action.result, function(err, result) {
+                    return validator.validate(data, {
+                      type: "object",
+                      children: action.result,
+                      mode: "shorten"
+                    }, function(err, result) {
                       if (err != null) {
                         return callback({
                           errorCode: "invalidResult",
@@ -404,7 +412,7 @@ FloodProcessor = (function(superClass) {
   };
 
   FloodProcessor.prototype.runMiddleware = function(arg) {
-    var callback, errorCode, fail, meta, middleware, name, namespace, params, ref, session;
+    var callback, errorCode, fail, meta, middleware, name, namespace, params, ref, ref1, session;
     session = arg.session, params = arg.params, callback = arg.callback, namespace = arg.namespace, name = arg.name;
     middleware = this.resolveMiddleware(namespace, name);
     fail = {};
@@ -417,7 +425,11 @@ FloodProcessor = (function(superClass) {
         }));
       };
     }
-    return validator.validate(params, middleware.params, (function(_this) {
+    return validator.validate(params, {
+      type: "object",
+      mode: (ref1 = middleware.validationMode) != null ? ref1 : "ensure",
+      children: middleware.params
+    }, (function(_this) {
       return function(err, params) {
         if (err != null) {
           return callback({
