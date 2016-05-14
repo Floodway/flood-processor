@@ -307,8 +307,10 @@ FloodProcessor = (function(superClass) {
             });
           } else {
             return _this.processMiddleware({
-              middlewareList: action.middleware
-            }, session, params, namespace, {
+              middlewareList: action.middleware,
+              session: session,
+              params: params,
+              namespace: namespace,
               callback: function(err, params) {
                 var actionName, errorCode, fail, i, len, listen, meta, ref1, ref2, run, toRemove;
                 if (err != null) {

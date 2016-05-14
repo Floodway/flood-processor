@@ -263,31 +263,28 @@ class FloodProcessor extends EventEmitter
 
             # Run middleware
 
-            @processMiddleware(
+            @processMiddleware({
 
               middlewareList: action.middleware,
               session,
               params,
               namespace,
-              callback: (err,params) =>
-
+              callback: (err, params) =>
                 if err? then return callback(err)
 
                 # Run the action now
 
                 toRemove = []
 
-                listen = (name,callback) =>
+                listen = (name, callback) =>
+                  toRemove.push({name, callback})
 
-                  toRemove.push({ name, callback })
-
-                  @events.on(name,callback)
-
+                  @events.on(name, callback)
 
 
-                onCleanUp( =>
+                onCleanUp(=>
                   for item in toRemove
-                    @events.off(item.name,item.callback)
+                    @events.off(item.name, item.callback)
                 )
 
                 fail = {}
@@ -295,7 +292,7 @@ class FloodProcessor extends EventEmitter
                 for errorCode,meta of action.possibleErrors
 
                   fail[errorCode] = (moreInfo) ->
-                    callback(_.extend(meta,moreInfo,{ errorCode: errorCode }))
+                    callback(_.extend(meta, moreInfo, {errorCode: errorCode}))
 
 
                 run = {}
@@ -303,7 +300,6 @@ class FloodProcessor extends EventEmitter
                 for actionName in action.calls
 
                   run[actionName] = (callback) =>
-
                     @runAction(
                       params,
                       namespace,
@@ -315,7 +311,6 @@ class FloodProcessor extends EventEmitter
 
 
                 action.process(
-
                   session,
                   params,
                   listen,
@@ -323,9 +318,11 @@ class FloodProcessor extends EventEmitter
                   onCleanUp,
                   emit: @events.emit
                   res: (data) ->
-
-                    validator.validate(data,{ type: "object", children: action.result, mode: "shorten" },(err,result) ->
-
+                    validator.validate(data, {
+                      type: "object",
+                      children: action.result,
+                      mode: "shorten"
+                    }, (err, result) ->
                       if err?
 
                         callback(
@@ -334,10 +331,10 @@ class FloodProcessor extends EventEmitter
                         )
 
                       else
-                        callback(null,result)
+                        callback(null, result)
                     )
                 )
-            )
+            })
         )
       else
 
