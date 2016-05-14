@@ -312,7 +312,7 @@ class FloodProcessor extends EventEmitter
                     )
 
 
-                action.process(
+                action.process({
                   session,
                   params,
                   listen,
@@ -335,7 +335,7 @@ class FloodProcessor extends EventEmitter
                       else
                         callback(null, result)
                     )
-                )
+                })
             })
         )
       else

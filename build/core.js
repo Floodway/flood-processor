@@ -358,7 +358,12 @@ FloodProcessor = (function(superClass) {
                     }, onCleanUp);
                   };
                 }
-                return action.process(session, params, listen, run, onCleanUp, {
+                return action.process({
+                  session: session,
+                  params: params,
+                  listen: listen,
+                  run: run,
+                  onCleanUp: onCleanUp,
                   emit: _this.events.emit,
                   res: function(data) {
                     return validator.validate(data, {
