@@ -1,5 +1,4 @@
-var EventEmitter, FloodProcessor, RequestEventEmitter, WebInterface, WebSocket, WebSocketInterface, _, fs, l, r, validator,
-  bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; },
+var EventEmitter, FloodEventListener, FloodProcessor, RequestEventEmitter, WebInterface, WebSocket, WebSocketInterface, _, fs, l, r, validator,
   extend = function(child, parent) { for (var key in parent) { if (hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
   hasProp = {}.hasOwnProperty;
 
@@ -23,6 +22,8 @@ WebInterface = require("./webInterface");
 
 WebSocketInterface = require("./webSocketInterface");
 
+FloodEventListener = require("flood-events").Client;
+
 FloodProcessor = (function(superClass) {
   extend(FloodProcessor, superClass);
 
@@ -33,7 +34,6 @@ FloodProcessor = (function(superClass) {
   };
 
   function FloodProcessor(config) {
-    this.nextMiddleware = bind(this.nextMiddleware, this);
     var ref, ref1, ref2;
     this.namespaces = {};
     this.listeners = [];
@@ -41,11 +41,7 @@ FloodProcessor = (function(superClass) {
       db: (ref = config.db) != null ? ref : {
         db: "floodway"
       },
-      eventServer: (ref1 = config.eventServer) != null ? ref1 : {
-        ip: "localhost",
-        useWss: false,
-        port: 3000
-      },
+      eventServer: (ref1 = config.eventServer) != null ? ref1 : "ws://localhost:3000/",
       interfaces: (ref2 = config.interfaces) != null ? ref2 : {
         http: {
           enabled: true,
@@ -83,14 +79,14 @@ FloodProcessor = (function(superClass) {
         var checkTables;
         checkTables = function() {
           return r.db(_this.config.db.db).tableList().run(_this.db, function(err, res) {
-            var j, len, requiredTables, results, table;
+            var i, len, requiredTables, results, table;
             if (err != null) {
               _this.shutdown("Database not compatible: " + err);
             }
             requiredTables = ["sessions"];
             results = [];
-            for (j = 0, len = requiredTables.length; j < len; j++) {
-              table = requiredTables[j];
+            for (i = 0, len = requiredTables.length; i < len; i++) {
+              table = requiredTables[i];
               if (res.indexOf(table) === -1) {
                 l.success("Creating Table: " + table);
                 results.push(r.db(_this.config.db.db).tableCreate(table).run(_this.db));
@@ -116,54 +112,8 @@ FloodProcessor = (function(superClass) {
     })(this));
   };
 
-  FloodProcessor.prototype.emitEvent = function(name, params) {
-    var j, len, listener, ref, results;
-    this.eventSocket.send(JSON.stringify({
-      messageType: "event",
-      params: {
-        event: name,
-        params: params
-      }
-    }));
-    l.log("Sending event: " + name);
-    ref = this.listeners;
-    results = [];
-    for (j = 0, len = ref.length; j < len; j++) {
-      listener = ref[j];
-      results.push((function(listener) {
-        return listener.emitEvent(name, params);
-      })(listener));
-    }
-    return results;
-  };
-
-  FloodProcessor.prototype.processEventMessage = function(data) {
-    var j, len, listener, ref, results;
-    if ((data.messageType != null) && (data.params != null)) {
-      switch (data.messageType) {
-        case "event":
-          ref = this.listeners;
-          results = [];
-          for (j = 0, len = ref.length; j < len; j++) {
-            listener = ref[j];
-            results.push(listener.emitEvent(data.params.event, data.params.params));
-          }
-          return results;
-          break;
-        default:
-          return l.error("Invalid messageType received: " + data.messageType);
-      }
-    } else {
-      return l.error("Invalid message received: " + data);
-    }
-  };
-
   FloodProcessor.prototype.shutdown = function(reason) {
     throw new Error(reason);
-  };
-
-  FloodProcessor.prototype.sendEvent = function(data) {
-    return this.eventSocket.send(JSON.stringify(data));
   };
 
   FloodProcessor.prototype.namespace = function(namespace) {
@@ -230,11 +180,11 @@ FloodProcessor = (function(superClass) {
         for (actionName in ref1) {
           action = ref1[actionName];
           results1.push((function() {
-            var j, len, ref2, results2;
+            var i, len, ref2, results2;
             ref2 = action.middleware;
             results2 = [];
-            for (j = 0, len = ref2.length; j < len; j++) {
-              middleware = ref2[j];
+            for (i = 0, len = ref2.length; i < len; i++) {
+              middleware = ref2[i];
               if (this.resolveMiddleware(name, middleware) == null) {
                 results2.push(this.shutdown("Invalid middleware: '" + middleware + "'  used in " + name + "." + actionName));
               } else {
@@ -251,37 +201,10 @@ FloodProcessor = (function(superClass) {
   };
 
   FloodProcessor.prototype.start = function() {
-    this.eventSocket = new WebSocket("" + (this.config.eventServer.useWss ? "wss://" : "ws://") + this.config.eventServer.ip + ":" + this.config.eventServer.port);
-    this.eventSocket.on("error", (function(_this) {
-      return function(err) {
-        return _this.shutdown("Unable to connect to event server");
-      };
-    })(this));
-    return this.eventSocket.on("open", (function(_this) {
+    this.events = new FloodEventListener(this.config.eventServer);
+    return this.events.on("ready", (function(_this) {
       return function() {
-        l.success("Connection to event server instantiated");
-        _this.sendEvent({
-          messageType: "init",
-          params: {
-            type: "processor"
-          }
-        });
         return _this.connectToDb(function() {
-          _this.eventSocket.on("message", function(message) {
-            var data, e, error1;
-            try {
-              data = JSON.parse(message.toString());
-            } catch (error1) {
-              e = error1;
-              l.error("Invalid message from Event server: " + (message.toString()));
-            }
-            if (data != null) {
-              return _this.processEventMessage(data);
-            }
-          });
-          _this.eventSocket.on("close", function() {
-            return this.shutdown("Event Server shutdown");
-          });
           if (_this.config.interfaces.http.enabled) {
             _this.webInterface = new WebInterface(_this.config.interfaces.http.port, _this);
           }
@@ -295,7 +218,7 @@ FloodProcessor = (function(superClass) {
           return _this.webInterface.listen();
         });
       };
-    })(this));
+    })(this), true);
   };
 
   FloodProcessor.prototype.resolveMiddleware = function(currentNamespace, name) {
@@ -308,221 +231,214 @@ FloodProcessor = (function(superClass) {
     }
   };
 
+  FloodProcessor.prototype.resolveAction = function(currentNamespace, name) {
+    var split;
+    if (name.indexOf(".") === -1) {
+      return this.namespaces[currentNamespace].actions[name];
+    } else {
+      split = name.split(".");
+      return this.namespaces[split[0]].actions[split[1]];
+    }
+  };
+
   FloodProcessor.prototype.processRequest = function(request) {
-    var action, currentMiddleware, proceed;
-    if (this.namespaces[request.namespace] != null) {
-      action = this.namespaces[request.namespace].actions[request.action];
-      if (action != null) {
-        if (action.supportsUpdates && !request.supportsUpdates) {
-          return request.failRaw({
-            errorCode: "incompatibleProtocol",
-            description: "The action '" + request.action + "' is not compatible with this protocol!"
-          });
+    var cleanUp, onCleanUp, toCleanUp;
+    if (this.namespaces[request.namespace] == null) {
+      request.failRaw({
+        errorCode: "invalidNamespace",
+        description: "The namespace '" + request.namespace + " is not registered!'"
+      });
+      return;
+    }
+    if (this.namespaces[request.namespace].actions == null) {
+      request.failRaw({
+        errorCode: "invalidAction",
+        description: "The action '" + request.action + " is not registered in namespace '" + request.namespace + "'!"
+      });
+      return;
+    }
+    toCleanUp = [];
+    onCleanUp = function(fn) {
+      return toCleanUp.push(fn);
+    };
+    cleanUp = function() {
+      var fn, i, len;
+      for (i = 0, len = toCleanUp.length; i < len; i++) {
+        fn = toCleanUp[i];
+        fn();
+      }
+      return request.emit("done");
+    };
+    return this.runAction({
+      params: request.params,
+      namespace: request.namespace,
+      name: request.action,
+      session: request.session
+    }, onCleanUp, {
+      callback: function(err, data) {
+        if (err != null) {
+          request.failRaw(err);
+          return cleanUp();
         } else {
-          proceed = (function(_this) {
-            return function(request) {
-              return validator.validate(request.params, {
-                type: "object",
-                children: action.params,
-                mode: "shorten"
-              }, function(err, params) {
-                var errorCode, errors, events, meta, ref, result;
+          request.send(data);
+          if (!request.supportsUpdates) {
+            return cleanUp();
+          }
+        }
+      }
+    });
+  };
+
+  FloodProcessor.prototype.runAction = function(arg) {
+    var action, callback, name, namespace, onCleanUp, params, session;
+    params = arg.params, namespace = arg.namespace, name = arg.name, session = arg.session, callback = arg.callback, onCleanUp = arg.onCleanUp;
+    action = this.resolveAction(namespace, name);
+    if (action != null) {
+      return validator.validate(params, action.params, (function(_this) {
+        return function(err, params) {
+          if (err != null) {
+            return callback({
+              errorCode: "invalidParams",
+              details: err
+            });
+          } else {
+            return _this.processMiddleware({
+              middlewareList: action.middleware
+            }, session, params, namespace, {
+              callback: function(err, params) {
+                var actionName, errorCode, fail, i, len, listen, meta, ref, ref1, run, toRemove;
                 if (err != null) {
-                  return request.failRaw({
-                    errorCode: "invalidParams",
-                    details: err
-                  });
+                  return callback(err);
                 }
-                request.params = params;
-                errors = {};
+                toRemove = [];
+                listen = function(name, callback) {
+                  toRemove.push({
+                    name: name,
+                    callback: callback
+                  });
+                  return _this.events.on(name, callback);
+                };
+                onCleanUp(function() {
+                  var i, item, len, results;
+                  results = [];
+                  for (i = 0, len = toRemove.length; i < len; i++) {
+                    item = toRemove[i];
+                    results.push(_this.events.off(item.name, item.callback));
+                  }
+                  return results;
+                });
+                fail = {};
                 ref = action.possibleErrors;
                 for (errorCode in ref) {
                   meta = ref[errorCode];
-                  errors[errorCode] = function(moreInfo) {
-                    return request.failRaw(_.extend(meta, moreInfo, {
+                  fail[errorCode] = function(moreInfo) {
+                    return callback(_.extend(meta, moreInfo, {
                       errorCode: errorCode
                     }));
                   };
                 }
-                result = function(data, final) {
-                  if (final == null) {
-                    final = false;
-                  }
-                  validator.validate(data, {
-                    type: "object",
-                    children: action.result,
-                    mode: "shorten"
-                  }, (function(_this) {
-                    return function(err, newData) {
+                run = {};
+                ref1 = action.calls;
+                for (i = 0, len = ref1.length; i < len; i++) {
+                  actionName = ref1[i];
+                  run[actionName] = function(callback) {
+                    return _this.runAction(params, namespace, {
+                      name: actionName
+                    }, session, {
+                      callback: callback
+                    }, onCleanUp);
+                  };
+                }
+                return action.process(session, params, listen, run, onCleanUp, {
+                  emit: _this.events.emit,
+                  res: function(data) {
+                    return validator.validate(data, action.result, function(err, result) {
                       if (err != null) {
-                        l.error("Invalid result for request: " + request.namespace + "." + request.action + "\nData:", data, "\nError: \n", err);
-                        return request.failRaw({
-                          errorCode: "internalError"
+                        return callback({
+                          errorCode: "invalidResult",
+                          details: err
                         });
                       } else {
-                        return request.send(newData);
+                        return callback(null, result);
                       }
-                    };
-                  })(this));
-                  if (final || !action.supportsUpdates) {
-                    return request.emit("done");
+                    });
                   }
-                };
-                events = new RequestEventEmitter(_this, request.namespace);
-                _this.listeners.push(events);
-                request.once("done", function() {
-                  events.clearUp();
-                  return _this.listeners.splice(_this.listeners.indexOf(events), 1);
                 });
-                return action.process({
-                  session: request.session,
-                  params: request.params,
-                  fail: errors,
-                  ev: events,
-                  res: result,
-                  db: _this.db
-                });
-              });
-            };
-          })(this);
-          if (action.middleware.length !== 0) {
-            currentMiddleware = 0;
-            return this.nextMiddleware(request, currentMiddleware, action);
-          } else {
-            return proceed(request);
+              }
+            });
           }
-        }
-      } else {
-        return request.failRaw({
-          errorCode: "invalidAction",
-          description: "The action '" + request.action + "' does not exist!"
-        });
-      }
+        };
+      })(this));
     } else {
-      return request.failRaw({
-        errorCode: "invalidNamespace",
-        description: "The namespace '" + request.namespace + "' does not exist!"
+      return callback({
+        errorCode: "unknownAction"
       });
     }
   };
 
-  FloodProcessor.prototype.nextMiddleware = function(request, currentMiddleware, action) {
-    var middleware;
-    middleware = this.resolveMiddleware(request.namespace, action.middleware[currentMiddleware]);
-    return validator.validate(request.params, {
-      type: "object",
-      children: middleware.params,
-      mode: "shorten"
-    }, (function(_this) {
-      return function(err, params) {
-        var errorCode, errors, meta, ref;
-        if (err != null) {
-          return request.failRaw({
-            errorCode: "invalidParams",
-            details: err
-          });
-        }
-        params = request.params;
-        errors = {};
-        ref = middleware.possibleErrors;
-        for (errorCode in ref) {
-          meta = ref[errorCode];
-          errors[errorCode] = function(moreInfo) {
-            request.failRaw(_.extend(meta, moreInfo, {
-              errorCode: errorCode
-            }));
-            return request.err = true;
-          };
-        }
-        request.fail = errors;
-        return middleware.process(request, function(newRequest) {
-          if (newRequest.err == null) {
-            if (newRequest == null) {
-              newRequest = request;
-            }
-            if (currentMiddleware !== action.middleware.length - 1) {
-              currentMiddleware++;
-              return _this.nextMiddleware(newRequest, currentMiddleware, action);
-            } else {
-              return proceed(newRequest);
-            }
+  FloodProcessor.prototype.processMiddleware = function(arg) {
+    var callback, currentMiddleware, middlwareList, namespace, next, params, session;
+    middlwareList = arg.middlwareList, session = arg.session, params = arg.params, callback = arg.callback, namespace = arg.namespace;
+    if (middlwareList.length === 0) {
+      callback(null, params);
+    }
+    currentMiddleware = 0;
+    return next = function(params) {
+      return runMiddleware({
+        session: session,
+        params: params,
+        namespace: namespace,
+        name: middlwareList[currentMiddleware],
+        callback: function(err, newParams) {
+          if (err != null) {
+            return callback(err);
           }
-        });
-      };
-    })(this));
+          if (currentMiddleware === middlwareList.length - 1) {
+            return callback(null, newParams);
+          } else {
+            return next(newParams);
+          }
+        }
+      });
+    };
   };
 
-  FloodProcessor.prototype.generateDocumentation = function() {
-    var action, actionName, error, errorCode, file, j, len, middleware, middlewareName, name, namespace, ref, ref1, ref2, ref3, ref4, ref5, results;
-    if (!fs.existsSync("./docs")) {
-      fs.mkdirSync("./docs");
+  FloodProcessor.prototype.runMiddleware = function(arg) {
+    var callback, errorCode, fail, meta, middleware, name, namespace, params, ref, session;
+    session = arg.session, params = arg.params, callback = arg.callback, namespace = arg.namespace, name = arg.name;
+    middleware = this.resolveMiddleware(namespace, name);
+    fail = {};
+    ref = middleware.possibleErrors;
+    for (errorCode in ref) {
+      meta = ref[errorCode];
+      fail[errorCode] = function(moreInfo) {
+        return callback(_.extend(meta, moreInfo, {
+          errorCode: errorCode
+        }));
+      };
     }
-    ref = this.namespaces;
-    results = [];
-    for (name in ref) {
-      namespace = ref[name];
-      file = "# Namespace: " + name + "\n\n --- \n";
-      if (namespace.description != null) {
-        file += "##Description: \n" + namespace.description + "\n\n";
-      }
-      if ((namespace.middleware != null) && Object.keys(namespace.middleware).length !== 0) {
-        file += "##Middleware\n\n";
-        ref1 = namespace.middleware;
-        for (middlewareName in ref1) {
-          middleware = ref1[middlewareName];
-          file += "###" + middlewareName + " \n";
-          file += middleware.description + "\n\n --- \n\n";
-          if (middleware.params != null) {
-            file += "####Parameters\n json```" + JSON.stringify(middleware.params) + "```\n";
-          }
-          file += "####Possible errors \n";
-          ref2 = middleware.possibleErrors;
-          for (errorCode in ref2) {
-            error = ref2[errorCode];
-            file += "**" + errorCode + "**\n";
-            if (error.description != null) {
-              file += "\t*" + error.description.trim() + "*";
+    return validator.validate(params, middleware.params, (function(_this) {
+      return function(err, params) {
+        if (err != null) {
+          return callback({
+            errorCode: "invalidParams",
+            description: "The parameters passed to '" + name + "' were invalid. (NS: '" + namespace + "')",
+            details: err
+          });
+        } else {
+          return middleware.process({
+            fail: fail,
+            on: _this.events.once,
+            params: params,
+            session: session,
+            emit: _this.events.emit,
+            callback: function(params) {
+              return callback(null, params);
             }
-          }
+          });
         }
-      }
-      if (namespace.actions && Object.keys(namespace.actions).length !== 0) {
-        file += "##Actions\n\n";
-        ref3 = namespace.actions;
-        for (actionName in ref3) {
-          action = ref3[actionName];
-          file += "* ###" + actionName + " \n\n";
-          file += "\t*" + action.description + "*\n";
-          file += "\t* **Supports updates:** " + (action.supportsUpdates ? "Yes" : "No") + " \n";
-          if ((action.middleware != null) && action.middleware.length !== 0) {
-            file += "\t* **Middlware used:** \n";
-            ref4 = action.middleware;
-            for (j = 0, len = ref4.length; j < len; j++) {
-              middleware = ref4[j];
-              file += "\t\t* " + middleware + "\n";
-            }
-          }
-          file += "\t* **Parameters:**\n\n \t\t```json\n" + JSON.stringify(action.params, null, 4).split("\n").map(function(i) {
-            return "\t\t" + i;
-          }).join("\n") + "\n```\n";
-          file += "\t* **Possible errors**:\n";
-          if ((action.possibleErrors != null) && Object.keys(action.possibleErrors).length !== 0) {
-            ref5 = action.possibleErrors;
-            for (errorCode in ref5) {
-              error = ref5[errorCode];
-              file += "**" + errorCode + "**\n";
-              if (error.description != null) {
-                file += "\t*" + error.description.trim() + "*";
-              }
-            }
-          } else {
-            file += "None\n";
-          }
-        }
-      }
-      results.push(fs.writeFile("./docs/" + name + ".md", file));
-    }
-    return results;
+      };
+    })(this));
   };
 
   return FloodProcessor;

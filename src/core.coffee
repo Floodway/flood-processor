@@ -10,6 +10,8 @@ fs = require("fs")
 WebInterface = require("./webInterface")
 WebSocketInterface = require("./webSocketInterface")
 
+FloodEventListener = require("flood-events").Client
+
 
 class FloodProcessor extends EventEmitter
 
@@ -30,11 +32,7 @@ class FloodProcessor extends EventEmitter
           db: "floodway"
         }
 
-        eventServer: config.eventServer ? {
-          ip: "localhost"
-          useWss: false
-          port: 3000
-        }
+        eventServer: config.eventServer ? "ws://localhost:3000/"
 
         interfaces: config.interfaces ? {
 
@@ -102,54 +100,10 @@ class FloodProcessor extends EventEmitter
 
       )
 
-
-    emitEvent: (name,params) ->
-
-      @eventSocket.send(JSON.stringify(
-        messageType: "event"
-        params: 
-          event: name 
-          params: params
-      ))
-      l.log("Sending event: "+name)
-      for listener in @listeners
-        do(listener) ->
-
-          listener.emitEvent(name,params)
-      
-
-    processEventMessage: (data) ->
-
-      if data.messageType? and data.params?
-
-        switch data.messageType
-
-          when "event"
-            # Pass an event
-
-            for listener in @listeners
-              # Build event name
-
-              listener.emitEvent(data.params.event,data.params.params)
-
-          else
-
-            l.error("Invalid messageType received: #{  data.messageType }")
-
-      else
-
-        l.error("Invalid message received: #{ data }")
-
-
     shutdown: (reason) ->
-
-      # Todo: Cancel all requests.
-
       throw new Error(reason)
 
-    sendEvent: (data) ->
 
-      @eventSocket.send(JSON.stringify(data))
 
     namespace: (namespace) ->
 
@@ -190,328 +144,260 @@ class FloodProcessor extends EventEmitter
 
       l.success("Namespace registered: #{ namespace.namespace }")
 
-
     validateIntegrity: ->
-
+      # TODO: make recursive check of all functions ran.
       for name, namespace of @namespaces
-
         for actionName, action of namespace.actions
-
           for middleware in action.middleware
-
             if not @resolveMiddleware(name,middleware)? then @shutdown("Invalid middleware: '#{ middleware }'  used in #{name}.#{actionName}")
-
-
-      
+              
     start: ->
+      
+        @events = new FloodEventListener(@config.eventServer)
+        
+        @events.on("ready", =>
 
+          @connectToDb( =>
 
-      # Connect to the event server
-      @eventSocket = new WebSocket(
-        "#{ if @config.eventServer.useWss then "wss://" else "ws://" }#{ @config.eventServer.ip }:#{ @config.eventServer.port }"
-      )
+            if @config.interfaces.http.enabled
 
-      @eventSocket.on("error", (err) =>
+              @webInterface = new WebInterface(@config.interfaces.http.port,this)
 
-        @shutdown("Unable to connect to event server")
-      )
+            if @config.interfaces.ws.enabled
 
-      @eventSocket.on("open", =>
-        l.success("Connection to event server instantiated")
-
-        # Send init
-
-        @sendEvent(
-          messageType: "init"
-          params:
-            type: "processor"
-        )
-
-        @connectToDb( =>
-
-          @eventSocket.on("message",(message) =>
-            try
-              data = JSON.parse(message.toString())
-            catch e
-              l.error("Invalid message from Event server: #{ message.toString() }")
-
-            if data? then @processEventMessage(data)
+              @webSocketInterface = new WebSocketInterface(
+                processor: @
+                server: if @config.interfaces.ws.useHtttp then @webInterface.getServer() else null
+                allowedOrigins: @config.interfaces.ws.allowedOrigins
+              )
+              
+            @webInterface.listen()
           )
-
-          @eventSocket.on("close", ->
-            @shutdown("Event Server shutdown")
-          )
-
-
-
-
-          if @config.interfaces.http.enabled
-
-            @webInterface = new WebInterface(@config.interfaces.http.port,this)
-
-          if @config.interfaces.ws.enabled
-
-            @webSocketInterface = new WebSocketInterface(
-              processor: @
-              server: if @config.interfaces.ws.useHtttp then @webInterface.getServer() else null
-              allowedOrigins: @config.interfaces.ws.allowedOrigins
-            )
-
-          @webInterface.listen()
-
-
-        )
-
-      )
-
-      
-      
-      
+        ,true)
 
     resolveMiddleware: (currentNamespace,name) ->
+      
+      if name.indexOf(".") ==  -1
+        return @namespaces[currentNamespace].middleware[name]
+      else
+        split = name.split(".")
+        return @namespaces[split[0]].middleware[split[1]]
+
+    resolveAction: (currentNamespace,name) ->
 
       if name.indexOf(".") ==  -1
         # Using current namespace
-        return @namespaces[currentNamespace].middleware[name]
+        return @namespaces[currentNamespace].actions[name]
       else
 
         split = name.split(".")
 
-        return @namespaces[split[0]].middleware[split[1]]
-
+        return @namespaces[split[0]].actions[split[1]]
 
     processRequest: (request) ->
 
-      # Check if namespace is valid
-      if @namespaces[request.namespace]?
+      if not @namespaces[request.namespace]?
+        request.failRaw(
+          errorCode: "invalidNamespace"
+          description: "The namespace '#{ request.namespace } is not registered!'"
+        )
+        return
 
-        # Check if action exists
-        action = @namespaces[request.namespace].actions[request.action]
-        if action?
+      if not @namespaces[request.namespace].actions?
+        request.failRaw(
+          errorCode: "invalidAction"
+          description: "The action '#{  request.action } is not registered in namespace '#{request.namespace}'!"
+
+        )
+        return
+
+      toCleanUp = []
+
+      onCleanUp = (fn) ->
+        toCleanUp.push(fn)
+
+      cleanUp = ->
+
+        for fn in toCleanUp
+
+          fn()
+
+        request.emit("done")
 
 
-          if action.supportsUpdates and not request.supportsUpdates
+      @runAction(
+        params: request.params,
+        namespace: request.namespace,
+        name: request.action,
+        session: request.session,
+        onCleanUp,
+        callback: (err,data) ->
 
-            request.failRaw(
-
-              errorCode: "incompatibleProtocol"
-              description: "The action '#{  request.action }' is not compatible with this protocol!"
-
-            )
-
+          if err?
+            request.failRaw(err)
+            cleanUp()
           else
 
-            proceed = (request) =>
+            request.send(data)
 
-              # Validate parameters
+            if not request.supportsUpdates
+              cleanUp()
+
+      )
+
+    runAction: ({ params, namespace, name, session, callback, onCleanUp }) ->
+
+      # Resolve the action
+
+      action = @resolveAction(namespace,name)
+
+      if action?
+
+        # Validate params
+        validator.validate(params,action.params,(err,params) =>
+
+          if err?
+            callback(
+              errorCode: "invalidParams"
+              details: err
+            )
+          else
+
+            # Run middleware
+
+            @processMiddleware(
+
+              middlewareList: action.middleware,
+              session,
+              params,
+              namespace,
+              callback: (err,params) =>
+
+                if err? then return callback(err)
+
+                # Run the action now
+
+                toRemove = []
+
+                listen = (name,callback) =>
+
+                  toRemove.push({ name, callback })
+
+                  @events.on(name,callback)
 
 
-              validator.validate(request.params,{ type: "object", children: action.params , mode: "shorten" },(err,params) =>
-                if err? then return request.failRaw({ errorCode: "invalidParams", details: err })
 
-
-                # We can call the request
-                request.params = params
-
-                errors = {}
-
-                for errorCode, meta of action.possibleErrors
-
-                  errors[errorCode] = (moreInfo) ->
-                    request.failRaw(_.extend(meta,moreInfo,{ errorCode: errorCode }))
-
-
-                result = (data,final=false) ->
-
-                  validator.validate(data,{ type: "object", children: action.result, mode: "shorten" },(err,newData) =>
-
-                    if err?
-                      l.error("Invalid result for request: #{ request.namespace }.#{  request.action }\nData:",data,"\nError: \n",err)
-                      request.failRaw(
-
-                        errorCode: "internalError"
-
-                      )
-                    else
-
-                      request.send(newData)
-
-                  )
-
-                  if final or not action.supportsUpdates then request.emit("done")
-
-
-
-                # Event stuff
-                events = new RequestEventEmitter(@,request.namespace)
-
-
-
-                @listeners.push(events)
-
-                request.once("done", =>
-                  events.clearUp()
-                  @listeners.splice(@listeners.indexOf(events),1)
+                onCleanUp( =>
+                  for item in toRemove
+                    @events.off(item.name,item.callback)
                 )
-                
+
+                fail = {}
+
+                for errorCode,meta of action.possibleErrors
+
+                  fail[errorCode] = (moreInfo) ->
+                    callback(_.extend(meta,moreInfo,{ errorCode: errorCode }))
+
+
+                run = {}
+
+                for actionName in action.calls
+
+                  run[actionName] = (callback) =>
+
+                    @runAction(
+                      params,
+                      namespace,
+                      name: actionName,
+                      session,
+                      callback: callback
+                      onCleanUp
+                    )
 
 
                 action.process(
-                  session: request.session
-                  params: request.params
-                  fail: errors
-                  ev: events
-                  res: result
-                  db: @db
+
+                  session,
+                  params,
+                  listen,
+                  run,
+                  onCleanUp,
+                  emit: @events.emit
+                  res: (data) ->
+
+                    validator.validate(data,action.result,(err,result) ->
+
+                      if err?
+
+                        callback(
+                          errorCode: "invalidResult"
+                          details: err
+                        )
+
+                      else
+                        callback(null,result)
+                    )
                 )
-
-              )
-
-            if action.middleware.length != 0
-
-              currentMiddleware = 0
-
-              @nextMiddleware(request,currentMiddleware,action)
-
-
-            else
-
-              proceed(request)
-
-
-
-        else
-
-          request.failRaw(
-
-            errorCode: "invalidAction"
-            description: "The action '#{  request.action }' does not exist!"
-
-          )
-
+            )
+        )
       else
-        request.failRaw(
-          errorCode: "invalidNamespace"
-          description: "The namespace '#{  request.namespace }' does not exist!"
 
+        callback(
+          errorCode: "unknownAction"
         )
 
+    processMiddleware: ({ middlwareList, session, params, callback , namespace }) ->
 
+      if middlwareList.length == 0
 
+        callback(null,params)
 
-    nextMiddleware: (request,currentMiddleware,action) =>
+      currentMiddleware = 0
 
-      middleware = @resolveMiddleware(request.namespace,action.middleware[currentMiddleware])
-  
-      validator.validate(request.params,{ type: "object", children: middleware.params , mode: "shorten" },(err,params) =>
-  
-        if err? then return request.failRaw({ errorCode: "invalidParams", details: err })
-  
-        params = request.params
-  
-        errors = {}
-  
-        for errorCode, meta of middleware.possibleErrors
-  
-          errors[errorCode] = (moreInfo) ->
-            request.failRaw(_.extend(meta,moreInfo,{ errorCode: errorCode }))
-            request.err = true
-  
-        request.fail = errors
-  
-  
-  
-  
-        middleware.process(request,(newRequest) =>
-          if not newRequest.err?
-  
-            if not newRequest? then newRequest = request
-  
-            if currentMiddleware != action.middleware.length-1
-  
-              currentMiddleware++
-              @nextMiddleware(newRequest,currentMiddleware,action)
-            else
-  
-  
-              proceed(newRequest)
-  
-        )
+      next = (params) ->
+
+        runMiddleware({ session, params , namespace, name: middlwareList[currentMiddleware], callback: (err,newParams) ->
+
+          if err? then return callback(err)
+
+          if currentMiddleware == middlwareList.length-1
+
+            callback(null,newParams)
+
+          else
+            next(newParams)
+
+        })
+
+    runMiddleware: ({ session, params, callback, namespace, name }) ->
+
+      middleware = @resolveMiddleware(namespace,name)
+
+      # Middleware can't be null thanks to pre-running validation.
+
+      fail = {}
+
+      for errorCode, meta of middleware.possibleErrors
+
+        fail[errorCode] = (moreInfo) ->
+
+          callback(_.extend(meta,moreInfo,{ errorCode: errorCode }))
+
+      validator.validate(params,middleware.params,(err,params) =>
+        if err?
+
+          callback(
+            errorCode: "invalidParams"
+            description: "The parameters passed to '#{  name }' were invalid. (NS: '#{ namespace }')"
+            details: err
+          )
+        else
+          # Now run the middleware
+
+          middleware.process({ fail, on: @events.once, params , session , emit: @events.emit , callback: (params) -> callback(null,params) })
+
       )
-  
-    generateDocumentation: ->
-      if not fs.existsSync("./docs")
-        fs.mkdirSync("./docs")
-      for name, namespace of @namespaces
-
-        file = "# Namespace: #{ name }\n\n --- \n"
-
-        if namespace.description? then file+= "##Description: \n"+namespace.description+"\n\n"
-
-        if namespace.middleware? and Object.keys(namespace.middleware).length != 0
-          file += "##Middleware\n\n"
-
-          for middlewareName, middleware of namespace.middleware
-
-            file += "####{middlewareName} \n"
-
-            file += middleware.description+"\n\n --- \n\n"
-
-            if middleware.params?
-              file += "####Parameters\n json```"+JSON.stringify(middleware.params)+"```\n"
-
-            file += "####Possible errors \n"
-
-            for errorCode, error of middleware.possibleErrors
-
-              file += "**#{errorCode}**\n"
-              if error.description?
-                file += "\t*"+error.description.trim()+"*"
-
-        if namespace.actions and Object.keys(namespace.actions).length != 0
-
-          file += "##Actions\n\n"
-
-          for actionName, action of namespace.actions
-
-            file += "* ####{actionName} \n\n"
-
-            file += "\t*"+action.description+"*\n"
-
-            file += "\t* **Supports updates:** #{ if action.supportsUpdates then "Yes" else "No" } \n"
-
-            if action.middleware? and action.middleware.length != 0
-              file += "\t* **Middlware used:** \n"
-
-              for middleware in action.middleware
-
-                file += "\t\t* "+middleware+"\n"
-
-
-            file += "\t* **Parameters:**\n\n \t\t```json\n"+JSON.stringify(action.params,null,4).split("\n").map((i)-> "\t\t"+i).join("\n")+"\n```\n"
-
-
-            file += "\t* **Possible errors**:\n"
-
-            if action.possibleErrors? and Object.keys(action.possibleErrors).length != 0
-
-
-
-              for errorCode, error of action.possibleErrors
-
-                file += "**#{errorCode}**\n"
-                if error.description?
-                  file += "\t*"+error.description.trim()+"*"
-            else
-
-              file+= "None\n"
-
-        # Write to disk
-
-        fs.writeFile("./docs/#{ name }.md",file)
-
-
-
 
 
 module.exports = FloodProcessor

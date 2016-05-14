@@ -25,6 +25,7 @@
   },
   "dependencies": {
     "cookie": "^0.2.3",
+    "flood-events": "^1.1.0",
     "flood-gate": "^1.0.3",
     "lodash": "^4.11.1",
     "md5": "^2.1.0",
