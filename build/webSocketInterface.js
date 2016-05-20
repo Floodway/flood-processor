@@ -1,4 +1,4 @@
-var EventEmitter, Request, Session, WebSocketInterface, WsServer, cookie, l,
+var EventEmitter, Request, WebSocketInterface, WsServer, cookie, l,
   bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; },
   extend = function(child, parent) { for (var key in parent) { if (hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
   hasProp = {}.hasOwnProperty;
@@ -11,9 +11,60 @@ cookie = require("cookie");
 
 l = require("./log");
 
-Session = require("./session");
-
 Request = require("./request");
+
+
+/*
+  Websocket Interface 
+  
+  this interface can be used to connect via websockets to Floodway
+  
+  - Supports updates: yes 
+  
+  Request schema: 
+  
+  {
+    messageType: "request"
+    requestId: "uniqueString"
+    params: {...} 
+    namespace: "someNamespace" 
+    action: "someAction" 
+  }
+  
+  Cancel a request:
+  
+  {
+    messageType: "cancelRequest"
+    requestId: "something"
+  }
+  
+  Server replies with:
+  
+  {
+    messageType: "response"
+    requestId: "uniqueString"
+    data: { ... }
+  }
+  
+  or 
+  {
+    messageType: "error"
+    requestId: "uniqueString"
+    error: {
+        errorCode: "someErrorCode"
+        ...other data...
+    }
+  }
+
+  or
+
+  {
+    messageType: "done"
+    requestId: "uniqueString"
+  }
+
+  Is sent after a message fails or is marked as done
+ */
 
 WebSocketInterface = (function(superClass) {
   extend(WebSocketInterface, superClass);
@@ -23,8 +74,8 @@ WebSocketInterface = (function(superClass) {
     this.config = config;
     this.handleConnection = bind(this.handleConnection, this);
     this.verifyClient = bind(this.verifyClient, this);
-    l.log("Starting Websocket Interface");
     this.connections = [];
+    l.log("Starting Websocket Interface");
     if (this.config.server != null) {
       l.log("Using HTTP server");
       that = this;
@@ -56,7 +107,6 @@ WebSocketInterface = (function(superClass) {
           return callback(true);
         } else {
           if (this.config.allowedOrigins.indexOf(info.origin) !== -1) {
-            console.log("Valid origin");
             return callback(true);
           }
         }
@@ -66,91 +116,80 @@ WebSocketInterface = (function(superClass) {
   };
 
   WebSocketInterface.prototype.handleConnection = function(connection) {
-    var session, ssid;
-    console.log("Connected...");
+    var requests, ssid;
     ssid = cookie.parse(connection.upgradeReq.headers.cookie)["flood-ssid"];
-    connection.requests = [];
-    session = new Session(ssid, this.processor.db);
-    return session.verify((function(_this) {
-      return function(err) {
-        if (err != null) {
-          return connection.close(1008);
-        } else {
-          connection.on("close", function() {
-            var j, len, ref, request;
-            console.log("Closing..");
-            ref = connection.requests;
-            for (j = 0, len = ref.length; j < len; j++) {
-              request = ref[j];
-              request.emit("done");
-            }
-            return connection.requests = [];
-          });
-          return connection.on("message", function(message) {
-            var data, e, error, item, j, len, request, requests;
-            try {
-              data = JSON.parse(message.toString());
-            } catch (error) {
-              e = error;
-              l.error("Invalid message: " + e);
-            }
-            if (data != null) {
-              if ((data.requestId != null) && (data.messageType != null)) {
-                switch (data.messageType) {
-                  case "request":
-                    request = new Request({
-                      namespace: data.namespace,
-                      action: data.action,
-                      params: data.params,
-                      session: session,
-                      supportsUpdates: true,
-                      sendData: function(toBeSent) {
-                        var error1;
-                        toBeSent.requestId = data.requestId;
-                        try {
-                          return connection.send(JSON.stringify(toBeSent));
-                        } catch (error1) {
-                          e = error1;
-                          return l.error("Error while sending data back to client: " + e);
-                        }
-                      }
-                    });
-                    request.requestId = data.requestId;
-                    connection.requests.push(request);
-                    _this.processor.processRequest(request);
-                    return request.on("done", function() {
-                      return connection.requests.splice(connection.requests.indexOf(request), 1);
-                    });
-                  case "cancelRequest":
-                    requests = connection.requests.filter(function(item) {
-                      return item.requestId === data.params.requestId;
-                    });
-                    if (requests.length !== 0) {
-                      for (j = 0, len = requests.length; j < len; j++) {
-                        item = requests[j];
-                        item.emit("done");
-                      }
-                      return connection.send(JSON.stringify({
-                        messageType: "response",
-                        requestId: data.requestId,
-                        data: {
-                          terminatedRequests: requests.length
-                        }
-                      }));
+    requests = [];
+    connection.on("close", (function(_this) {
+      return function() {
+        var j, len, request;
+        for (j = 0, len = requests.length; j < len; j++) {
+          request = requests[j];
+          if (request != null) {
+            request.emit("done");
+          }
+        }
+        return requests = [];
+      };
+    })(this));
+    return connection.on("message", (function(_this) {
+      return function(message) {
+        var data, e, error, item, j, len, request, requestsFiltered, results;
+        try {
+          data = JSON.parse(message.toString());
+        } catch (error) {
+          e = error;
+          l.error("Invalid message: " + e);
+        }
+        if (data != null) {
+          if ((data.requestId != null) && (data.messageType != null)) {
+            switch (data.messageType) {
+              case "request":
+                request = new Request({
+                  namespace: data.namespace,
+                  action: data.action,
+                  params: data.params,
+                  session: ssid,
+                  supportsUpdates: true,
+                  sendData: function(toBeSent) {
+                    var error1;
+                    toBeSent.requestId = data.requestId;
+                    try {
+                      return connection.send(JSON.stringify(toBeSent));
+                    } catch (error1) {
+                      e = error1;
+                      return l.error("Error while sending data back to client: " + e);
                     }
-                    break;
-                  default:
-                    return connection.send(JSON.stringify({
-                      messageType: "error",
-                      requestId: data.requestId,
-                      error: {
-                        errorCode: "invalidMessageType"
-                      }
-                    }));
+                  }
+                });
+                request.requestId = data.requestId;
+                requests.push(request);
+                _this.processor.processRequest(request);
+                return request.once("done", function() {
+                  return requests.splice(requests.indexOf(request), 1);
+                });
+              case "cancelRequest":
+                requestsFiltered = requests.filter(function(item) {
+                  return item.requestId === data.requestId;
+                });
+                if (requestsFiltered.length !== 0) {
+                  results = [];
+                  for (j = 0, len = requestsFiltered.length; j < len; j++) {
+                    item = requestsFiltered[j];
+                    results.push(item.emit("done"));
+                  }
+                  return results;
                 }
-              }
+                break;
+              default:
+                return connection.send(JSON.stringify({
+                  messageType: "error",
+                  requestId: data.requestId,
+                  error: {
+                    errorCode: "invalidMessageType"
+                  }
+                }));
             }
-          });
+          }
         }
       };
     })(this));

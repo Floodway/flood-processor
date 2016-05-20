@@ -1,22 +1,12 @@
-var EventEmitter, FloodEventListener, FloodProcessor, RequestEventEmitter, WebInterface, WebSocket, WebSocketInterface, _, fs, l, r, validator,
+var Action, AsyncWait, EventEmitter, FloodEventListener, FloodProcessor, Middleware, Namespace, WebInterface, WebSocketInterface, _, ensure, fs, l, ref, validator,
   extend = function(child, parent) { for (var key in parent) { if (hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
   hasProp = {}.hasOwnProperty;
 
-WebSocket = require("ws");
+ensure = require("is_js");
 
 EventEmitter = require("events").EventEmitter;
 
-RequestEventEmitter = require("./requestEventEmitter");
-
-r = require("rethinkdb");
-
 validator = require("flood-gate");
-
-l = require("./log");
-
-_ = require("lodash");
-
-fs = require("fs");
 
 WebInterface = require("./webInterface");
 
@@ -24,23 +14,36 @@ WebSocketInterface = require("./webSocketInterface");
 
 FloodEventListener = require("flood-events").Client;
 
+l = require("./log");
+
+_ = require("lodash");
+
+fs = require("fs");
+
+AsyncWait = require("./asyncWait");
+
+ref = require("./builders"), Action = ref.Action, Middleware = ref.Middleware, Namespace = ref.Namespace;
+
 FloodProcessor = (function(superClass) {
   extend(FloodProcessor, superClass);
 
-  FloodProcessor.CrudNamespace = require("./crudNamespace");
+  FloodProcessor.Action = Action;
+
+  FloodProcessor.Middleware = Middleware;
+
+  FloodProcessor.Namespace = Namespace;
 
   FloodProcessor.prototype.isFloodProcessor = function() {
     return true;
   };
 
   function FloodProcessor(config) {
-    var ref, ref1, ref2;
+    var ref1, ref2;
+    l.log("Floodway instance with version " + (require("../package.json")["version"]) + " created");
     this.namespaces = {};
+    this.globals = {};
     this.listeners = [];
     this.config = {
-      db: (ref = config.db) != null ? ref : {
-        db: "floodway"
-      },
       eventServer: (ref1 = config.eventServer) != null ? ref1 : "ws://localhost:3000/",
       interfaces: (ref2 = config.interfaces) != null ? ref2 : {
         http: {
@@ -55,69 +58,19 @@ FloodProcessor = (function(superClass) {
         }
       }
     };
+    if (this.config.redis != null) {
+      this.namespace(require("./redis"));
+    }
     this.namespace(require("./mainNamespace"));
     this.validateIntegrity();
   }
-
-  FloodProcessor.prototype.connectToDb = function(callback) {
-    return r.connect(this.config.db, (function(_this) {
-      return function(err, conn) {
-        if (err != null) {
-          _this.shutdown("Db Connection failed: " + err);
-        }
-        _this.db = conn;
-        _this.checkDb();
-        return callback();
-      };
-    })(this));
-  };
-
-  FloodProcessor.prototype.checkDb = function() {
-    l.log("Checking database compatibility");
-    return r.dbList().run(this.db, (function(_this) {
-      return function(err, dbs) {
-        var checkTables;
-        checkTables = function() {
-          return r.db(_this.config.db.db).tableList().run(_this.db, function(err, res) {
-            var i, len, requiredTables, results, table;
-            if (err != null) {
-              _this.shutdown("Database not compatible: " + err);
-            }
-            requiredTables = ["sessions"];
-            results = [];
-            for (i = 0, len = requiredTables.length; i < len; i++) {
-              table = requiredTables[i];
-              if (res.indexOf(table) === -1) {
-                l.success("Creating Table: " + table);
-                results.push(r.db(_this.config.db.db).tableCreate(table).run(_this.db));
-              } else {
-                results.push(void 0);
-              }
-            }
-            return results;
-          });
-        };
-        if (dbs.indexOf(_this.config.db.db) === -1) {
-          return r.dbCreate(_this.config.db.db).run(_this.db, function(err) {
-            if (err != null) {
-              return _this.shutdown("Database not compatible: " + err);
-            } else {
-              return checkTables();
-            }
-          });
-        } else {
-          return checkTables();
-        }
-      };
-    })(this));
-  };
 
   FloodProcessor.prototype.shutdown = function(reason) {
     throw new Error(reason);
   };
 
   FloodProcessor.prototype.namespace = function(namespace) {
-    var action, middleware, name, ref, ref1;
+    var action, middleware, name, ref1, ref2;
     if (namespace.namespace == null) {
       this.shutdown("No namespace provided");
     }
@@ -133,9 +86,9 @@ FloodProcessor = (function(superClass) {
     if (namespace.globalMiddleware == null) {
       namespace.globalMiddleware = [];
     }
-    ref = namespace.middleware;
-    for (name in ref) {
-      middleware = ref[name];
+    ref1 = namespace.middleware;
+    for (name in ref1) {
+      middleware = ref1[name];
       if (!middleware.description) {
         this.shutdown("No description for middleware: " + name);
       }
@@ -143,9 +96,9 @@ FloodProcessor = (function(superClass) {
         middleware.params = {};
       }
     }
-    ref1 = namespace.actions;
-    for (name in ref1) {
-      action = ref1[name];
+    ref2 = namespace.actions;
+    for (name in ref2) {
+      action = ref2[name];
       if (action.description == null) {
         this.shutdown("No description for action: " + name);
       }
@@ -154,9 +107,15 @@ FloodProcessor = (function(superClass) {
       }
       if (action.params == null) {
         action.params = {};
+      } else {
+        if (ensure.string(action.params)) {
+          if (namespace.schemas[action.params] == null) {
+            this.shutdown("Schema not defined for action:" + name + " schema: " + action.params);
+          }
+        }
       }
       if (action.possibleErrors == null) {
-        action.possibleErrors = [];
+        action.possibleErrors = {};
       }
       if (action.middleware == null) {
         action.middleware = [];
@@ -171,23 +130,23 @@ FloodProcessor = (function(superClass) {
   };
 
   FloodProcessor.prototype.validateIntegrity = function() {
-    var action, actionName, middleware, name, namespace, ref, results;
-    ref = this.namespaces;
+    var action, actionName, middleware, name, namespace, ref1, results;
+    ref1 = this.namespaces;
     results = [];
-    for (name in ref) {
-      namespace = ref[name];
+    for (name in ref1) {
+      namespace = ref1[name];
       results.push((function() {
-        var ref1, results1;
-        ref1 = namespace.actions;
+        var ref2, results1;
+        ref2 = namespace.actions;
         results1 = [];
-        for (actionName in ref1) {
-          action = ref1[actionName];
+        for (actionName in ref2) {
+          action = ref2[actionName];
           results1.push((function() {
-            var i, len, ref2, results2;
-            ref2 = action.middleware;
+            var i, len, ref3, results2;
+            ref3 = action.middleware;
             results2 = [];
-            for (i = 0, len = ref2.length; i < len; i++) {
-              middleware = ref2[i];
+            for (i = 0, len = ref3.length; i < len; i++) {
+              middleware = ref3[i];
               if (this.resolveMiddleware(name, middleware) == null) {
                 results2.push(this.shutdown("Invalid middleware: '" + middleware + "'  used in " + name + "." + actionName));
               } else {
@@ -203,26 +162,175 @@ FloodProcessor = (function(superClass) {
     return results;
   };
 
+  FloodProcessor.prototype.convertSchemas = function() {
+    var action, actionName, convert, middleware, middlewareName, name, namespace, ref1, ref2, ref3, results, schema, schemaName;
+    l.success("Converting schemas...");
+    convert = function(input, namespace) {
+      var key, value;
+      if (ensure.string(input)) {
+        if (namespace.schemas[input] != null) {
+          return namespace.schemas[input];
+        } else {
+          return this.shutdown("Invalid schema used: " + input);
+        }
+      } else {
+        if (ensure.object(input)) {
+          if ((input.type != null) && ensure.string(input.type)) {
+            if (input.children != null) {
+              input.children = convert(input.children, namespace);
+            }
+            return input;
+          } else {
+            for (key in input) {
+              value = input[key];
+              input[key] = convert(value, namespace);
+            }
+            return input;
+          }
+        }
+      }
+    };
+    ref1 = this.namespaces;
+    results = [];
+    for (name in ref1) {
+      namespace = ref1[name];
+      if (namespace.schemas != null) {
+        ref2 = namespace.schemas;
+        for (schemaName in ref2) {
+          schema = ref2[schemaName];
+          namespace.schemas[schemaName] = convert(schema, namespace);
+        }
+      }
+      if (namespace.middleware != null) {
+        ref3 = namespace.middleware;
+        for (middlewareName in ref3) {
+          middleware = ref3[middlewareName];
+          namespace.middleware[middlewareName].params = convert(middleware.params, namespace);
+        }
+      }
+      if (namespace.middleware != null) {
+        results.push((function() {
+          var ref4, results1;
+          ref4 = namespace.actions;
+          results1 = [];
+          for (actionName in ref4) {
+            action = ref4[actionName];
+            namespace.actions[actionName].params = convert(action.params, namespace);
+            results1.push(namespace.actions[actionName].result = convert(action.result, namespace));
+          }
+          return results1;
+        })());
+      } else {
+        results.push(void 0);
+      }
+    }
+    return results;
+  };
+
   FloodProcessor.prototype.start = function() {
+    this.convertSchemas();
     this.events = new FloodEventListener(this.config.eventServer);
-    return this.events.on("ready", (function(_this) {
-      return function() {
-        return _this.connectToDb(function() {
-          if (_this.config.interfaces.http.enabled) {
-            _this.webInterface = new WebInterface(_this.config.interfaces.http.port, _this);
-          }
-          if (_this.config.interfaces.ws.enabled) {
-            _this.webSocketInterface = new WebSocketInterface({
-              processor: _this,
-              server: _this.config.interfaces.ws.useHtttp ? _this.webInterface.getServer() : null,
-              allowedOrigins: _this.config.interfaces.ws.allowedOrigins
-            });
-          }
-          _this.webInterface.listen();
-          return _this.runInitCode();
-        });
+    if (this.config.interfaces.http.enabled) {
+      this.webInterface = new WebInterface(this.config.interfaces.http.port, this);
+    }
+    if (this.config.interfaces.ws.enabled) {
+      this.webSocketInterface = new WebSocketInterface({
+        processor: this,
+        server: this.config.interfaces.ws.useHtttp ? this.webInterface.getServer() : null,
+        allowedOrigins: this.config.interfaces.ws.allowedOrigins
+      });
+    }
+    this.webInterface.listen();
+    return this.provideGlobals((function(_this) {
+      return function(err) {
+        if (err != null) {
+          _this.shutdown(err);
+        }
+        return _this.runInitCode();
       };
-    })(this), true);
+    })(this));
+  };
+
+  FloodProcessor.prototype.resolveGlobals = function(list, currentNamespace) {
+    var globalVar, item, ns, resName, result;
+    result = {};
+    for (item in list) {
+      resName = list[item];
+      if (item.indexOf(".") === -1) {
+        if ((this.globals[currentNamespace] != null) && (this.globals[currentNamespace][item] != null)) {
+          result[resName] = this.globals[currentNamespace][item];
+        } else {
+          this.shutdown("Unable to resolve global " + currentNamespace + "." + item);
+        }
+      } else {
+        ns = item.split(".")[0];
+        globalVar = item.split(".")[1];
+        if ((this.globals[ns] != null) && (this.globals[ns][globalVar] != null)) {
+          result[resName] = this.globals[ns][globalVar];
+        } else {
+          this.shutdown("Unable to resolve global " + item);
+        }
+      }
+    }
+    return result;
+  };
+
+  FloodProcessor.prototype.populateGlobals = function() {
+    var namespace, namespaceName, ref1, results;
+    ref1 = this.namespaces;
+    results = [];
+    for (namespaceName in ref1) {
+      namespace = ref1[namespaceName];
+      if (namespace.globals != null) {
+        results.push(namespace.globals = this.resolveGlobals(namespace.globals, namespaceName));
+      } else {
+        results.push(void 0);
+      }
+    }
+    return results;
+  };
+
+  FloodProcessor.prototype.provideGlobals = function(callback) {
+    var asyncWait, fn1, namespace, namespaceName, ref1;
+    asyncWait = new AsyncWait();
+    ref1 = this.namespaces;
+    fn1 = (function(_this) {
+      return function(namespaceName, namespace) {
+        var ref2, register, results, varName;
+        if (namespace.provideGlobals != null) {
+          _this.globals[namespaceName] = {};
+          ref2 = namespace.provideGlobals;
+          results = [];
+          for (varName in ref2) {
+            register = ref2[varName];
+            results.push((function(varName, register) {
+              return asyncWait.addStep(function(done) {
+                return register.process({
+                  config: _this.config
+                }, function(globalVar) {
+                  if (_this.globals[namespaceName] == null) {
+                    _this.globals[namespaceName] = {};
+                  }
+                  _this.globals[namespaceName][varName] = globalVar;
+                  return done();
+                });
+              });
+            })(varName, register));
+          }
+          return results;
+        }
+      };
+    })(this);
+    for (namespaceName in ref1) {
+      namespace = ref1[namespaceName];
+      fn1(namespaceName, namespace);
+    }
+    return asyncWait.run((function(_this) {
+      return function() {
+        _this.populateGlobals();
+        return callback();
+      };
+    })(this));
   };
 
   FloodProcessor.prototype.resolveMiddleware = function(currentNamespace, name) {
@@ -236,25 +344,26 @@ FloodProcessor = (function(superClass) {
   };
 
   FloodProcessor.prototype.resolveAction = function(currentNamespace, name) {
-    var split;
+    var action, split;
     if (name.indexOf(".") === -1) {
-      return this.namespaces[currentNamespace].actions[name];
+      action = this.namespaces[currentNamespace].actions[name];
     } else {
       split = name.split(".");
-      return this.namespaces[split[0]].actions[split[1]];
+      action = this.namespaces[split[0]].actions[split[1]];
     }
+    return action;
   };
 
   FloodProcessor.prototype.runInitCode = function() {
-    var name, namespace, ref, results;
-    ref = this.namespaces;
+    var name, namespace, ref1, results;
+    ref1 = this.namespaces;
     results = [];
-    for (name in ref) {
-      namespace = ref[name];
+    for (name in ref1) {
+      namespace = ref1[name];
       if (namespace.onStart != null) {
         results.push(namespace.onStart({
           events: this.events,
-          db: this.db,
+          g: namespace.globals,
           processor: this
         }));
       } else {
@@ -273,7 +382,7 @@ FloodProcessor = (function(superClass) {
       });
       return;
     }
-    if (this.namespaces[request.namespace].actions == null) {
+    if ((this.namespaces[request.namespace].actions == null) || (this.namespaces[request.namespace].actions[request.action] == null) || this.namespaces[request.namespace].actions[request.action].isPrivate) {
       request.failRaw({
         errorCode: "invalidAction",
         description: "The action '" + request.action + " is not registered in namespace '" + request.namespace + "'!"
@@ -285,13 +394,17 @@ FloodProcessor = (function(superClass) {
       return toCleanUp.push(fn);
     };
     cleanUp = function() {
-      var fn, i, len;
+      var fn, i, len, results;
+      results = [];
       for (i = 0, len = toCleanUp.length; i < len; i++) {
         fn = toCleanUp[i];
-        fn();
+        results.push(fn());
       }
-      return request.emit("done");
+      return results;
     };
+    request.once("done", function() {
+      return cleanUp();
+    });
     return this.runAction({
       params: request.params,
       namespace: request.namespace,
@@ -301,11 +414,11 @@ FloodProcessor = (function(superClass) {
       callback: function(err, data) {
         if (err != null) {
           request.failRaw(err);
-          return cleanUp();
+          return request.emit("done");
         } else {
           request.send(data);
           if (!request.supportsUpdates) {
-            return cleanUp();
+            return request.emit("done");
           }
         }
       }
@@ -313,13 +426,13 @@ FloodProcessor = (function(superClass) {
   };
 
   FloodProcessor.prototype.runAction = function(arg) {
-    var action, callback, name, namespace, onCleanUp, params, ref, session;
+    var action, callback, name, namespace, onCleanUp, params, ref1, session;
     params = arg.params, namespace = arg.namespace, name = arg.name, session = arg.session, callback = arg.callback, onCleanUp = arg.onCleanUp;
     action = this.resolveAction(namespace, name);
     if (action != null) {
       return validator.validate(params, {
         type: "object",
-        mode: (ref = action.validationMode) != null ? ref : "shorten",
+        mode: (ref1 = action.validationMode) != null ? ref1 : "shorten",
         children: action.params
       }, (function(_this) {
         return function(err, params) {
@@ -335,7 +448,7 @@ FloodProcessor = (function(superClass) {
               params: params,
               namespace: namespace,
               callback: function(err, params) {
-                var actionName, errorCode, fail, i, len, listen, meta, ref1, ref2, run, toRemove;
+                var actionName, errorCode, fail, i, len, listen, meta, ref2, ref3, run, toRemove;
                 if (err != null) {
                   return callback(err);
                 }
@@ -357,9 +470,9 @@ FloodProcessor = (function(superClass) {
                   return results;
                 });
                 fail = {};
-                ref1 = action.possibleErrors;
-                for (errorCode in ref1) {
-                  meta = ref1[errorCode];
+                ref2 = action.possibleErrors;
+                for (errorCode in ref2) {
+                  meta = ref2[errorCode];
                   fail[errorCode] = function(moreInfo) {
                     return callback(_.extend(meta, moreInfo, {
                       errorCode: errorCode
@@ -367,9 +480,9 @@ FloodProcessor = (function(superClass) {
                   };
                 }
                 run = {};
-                ref2 = action.calls;
-                for (i = 0, len = ref2.length; i < len; i++) {
-                  actionName = ref2[i];
+                ref3 = action.calls;
+                for (i = 0, len = ref3.length; i < len; i++) {
+                  actionName = ref3[i];
                   run[actionName] = function(callback) {
                     return _this.runAction(params, namespace, {
                       name: actionName
@@ -382,6 +495,7 @@ FloodProcessor = (function(superClass) {
                   session: session,
                   params: params,
                   listen: listen,
+                  g: _this.namespaces[namespace].globals,
                   fail: fail,
                   db: _this.db,
                   run: run,
@@ -444,13 +558,13 @@ FloodProcessor = (function(superClass) {
   };
 
   FloodProcessor.prototype.runMiddleware = function(arg) {
-    var callback, errorCode, fail, meta, middleware, name, namespace, params, ref, ref1, session;
+    var callback, errorCode, fail, meta, middleware, name, namespace, params, ref1, ref2, session;
     session = arg.session, params = arg.params, callback = arg.callback, namespace = arg.namespace, name = arg.name;
     middleware = this.resolveMiddleware(namespace, name);
     fail = {};
-    ref = middleware.possibleErrors;
-    for (errorCode in ref) {
-      meta = ref[errorCode];
+    ref1 = middleware.possibleErrors;
+    for (errorCode in ref1) {
+      meta = ref1[errorCode];
       fail[errorCode] = function(moreInfo) {
         return callback(_.extend(meta, moreInfo, {
           errorCode: errorCode
@@ -459,7 +573,7 @@ FloodProcessor = (function(superClass) {
     }
     return validator.validate(params, {
       type: "object",
-      mode: (ref1 = middleware.validationMode) != null ? ref1 : "ensure",
+      mode: (ref2 = middleware.validationMode) != null ? ref2 : "ensure",
       children: middleware.params
     }, (function(_this) {
       return function(err, params) {
@@ -474,6 +588,7 @@ FloodProcessor = (function(superClass) {
             fail: fail,
             on: _this.events.once,
             params: params,
+            g: _this.namespaces[namespace].globals,
             session: session,
             db: _this.db,
             emit: _this.events.emit,

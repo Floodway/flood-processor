@@ -18,13 +18,13 @@ class Request extends EventEmitter
     if @supportsUpdates
 
       @once("done", =>
-        console.log "Request done.."
         @sendData(
           messageType: "done"
         )
       )
 
   send: (data) ->
+
     if not @failed
       @sendData(
         messageType: "response"

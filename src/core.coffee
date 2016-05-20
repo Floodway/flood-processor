@@ -1,36 +1,40 @@
-WebSocket = require("ws")
-EventEmitter = require("events").EventEmitter
-RequestEventEmitter = require("./requestEventEmitter")
-r =require("rethinkdb")
-validator = require("flood-gate")
 
-l = require("./log")
-_ = require("lodash")
-fs = require("fs")
-WebInterface = require("./webInterface")
-WebSocketInterface = require("./webSocketInterface")
+# Dependencies
+ensure              = require("is_js")
+EventEmitter        = require("events").EventEmitter
+validator           = require("flood-gate")
+WebInterface        = require("./webInterface")
+WebSocketInterface  = require("./webSocketInterface")
+FloodEventListener  = require("flood-events").Client
+l                   = require("./log")
+_                   = require("lodash")
+fs                  = require("fs")
+AsyncWait           = require("./asyncWait")
 
-FloodEventListener = require("flood-events").Client
-
+# These classes will be exported.
+{ Action, Middleware, Namespace} = require("./builders")
 
 class FloodProcessor extends EventEmitter
 
-    
-    @CrudNamespace: require("./crudNamespace")
-    
+
+    @Action: Action
+    @Middleware: Middleware
+    @Namespace: Namespace
+     
     isFloodProcessor: -> true
     
     constructor: (config) ->
+      
 
+      l.log("Floodway instance with version #{ require("../package.json")["version"] } created")
+      
       @namespaces = {}
+
+      @globals = {}
 
       @listeners = []
 
       @config =
-
-        db: config.db ? {
-          db: "floodway"
-        }
 
         eventServer: config.eventServer ? "ws://localhost:3000/"
 
@@ -49,62 +53,19 @@ class FloodProcessor extends EventEmitter
         }
 
 
+      if @config.redis?
+        @namespace(require("./redis"))
+
       @namespace(require("./mainNamespace"))
       @validateIntegrity()
 
-    connectToDb: (callback) ->
+    
 
-      r.connect(
-        @config.db
-      ,(err,conn) =>
-        if err? then @shutdown("Db Connection failed: "+err)
-        @db = conn
-
-        @checkDb()
-
-        callback()
-      )
-
-    checkDb: ->
-      l.log("Checking database compatibility")
-      r.dbList().run(@db,(err,dbs) =>
-
-        checkTables = =>
-          r.db(@config.db.db).tableList().run(@db,(err,res) =>
-            if err? then @shutdown("Database not compatible: #{ err }")
-
-            requiredTables = ["sessions"]
-
-            for table in requiredTables
-
-              if res.indexOf(table) == -1
-
-                l.success("Creating Table: #{ table }")
-                r.db(@config.db.db).tableCreate(table).run(@db)
-
-
-          )
-
-        if dbs.indexOf(@config.db.db) == -1
-          r.dbCreate(@config.db.db).run(@db,(err) =>
-
-            if err?
-              @shutdown("Database not compatible: #{ err }")
-            else
-              checkTables()
-
-          )
-        else
-
-          checkTables()
-
-      )
 
     shutdown: (reason) ->
       throw new Error(reason)
 
-
-
+      
     namespace: (namespace) ->
 
       if not namespace.namespace? then @shutdown("No namespace provided")
@@ -130,18 +91,30 @@ class FloodProcessor extends EventEmitter
         if not action.description? then @shutdown("No description for action: "+name)
         if not action.supportsUpdates? then @shutdown("No update mode for action: "+name)
 
-        if not action.params? then action.params = {}
 
-        if not action.possibleErrors? then action.possibleErrors = []
+          
+        if not action.params? then action.params = {} else
 
+          # Check for schema
+
+          if ensure.string(action.params)
+
+            # It's a schema
+
+            if not namespace.schemas[action.params]? then @shutdown("Schema not defined for action:"+name+" schema: "+action.params)
+            
+
+
+
+        if not action.possibleErrors? then action.possibleErrors = {}
         if not action.middleware? then action.middleware = []
         if not action.calls? then action.calls = []
 
-
         # Automatically add global middleware to this action.. Fancy!
         action.middleware = namespace.globalMiddleware.concat(action.middleware)
-
-
+        
+        
+        
       @namespaces[namespace.namespace] = namespace
 
       l.success("Namespace registered: #{ namespace.namespace }")
@@ -152,33 +125,175 @@ class FloodProcessor extends EventEmitter
         for actionName, action of namespace.actions
           for middleware in action.middleware
             if not @resolveMiddleware(name,middleware)? then @shutdown("Invalid middleware: '#{ middleware }'  used in #{name}.#{actionName}")
+
+    convertSchemas: ->
+      l.success("Converting schemas...")
+      convert = (input,namespace) ->
+
+        if ensure.string(input)
+          # Schema
+          if namespace.schemas[input]? then return namespace.schemas[input] else @shutdown("Invalid schema used: "+input)
+
+        else
+          
+
+          if ensure.object(input)
+
+            # Validation config
+            if input.type? and ensure.string(input.type)
+
+
+              if input.children? then input.children = convert(input.children,namespace)
+
+
               
-    start: ->
-      
-        @events = new FloodEventListener(@config.eventServer)
+              return input
+              
+            else
+              for key,value of input 
+                
+                input[key] = convert(value,namespace)
+                
+              return input
+              
+
+
+      for name, namespace of @namespaces
         
-        @events.on("ready", =>
-
-          @connectToDb( =>
-
-            if @config.interfaces.http.enabled
-
-              @webInterface = new WebInterface(@config.interfaces.http.port,this)
-
-            if @config.interfaces.ws.enabled
-
-              @webSocketInterface = new WebSocketInterface(
-                processor: @
-                server: if @config.interfaces.ws.useHtttp then @webInterface.getServer() else null
-                allowedOrigins: @config.interfaces.ws.allowedOrigins
-              )
-              
-            @webInterface.listen()
+        if namespace.schemas?
+          
+          for schemaName, schema of namespace.schemas 
             
-            @runInitCode()
+            namespace.schemas[schemaName] = convert(schema,namespace)
+          
+        
+        if namespace.middleware? 
             
+          for middlewareName, middleware of namespace.middleware
+
+            namespace.middleware[middlewareName].params = convert(middleware.params,namespace)
+
+
+        if namespace.middleware?
+
+          for actionName, action of namespace.actions
+            
+            namespace.actions[actionName].params = convert(action.params,namespace)
+            namespace.actions[actionName].result = convert(action.result,namespace)
+
+
+
+
+    start: ->
+
+        # Convert all schemas present in namespaces
+
+        @convertSchemas()
+
+        # Create a connection to the event server
+
+        @events = new FloodEventListener(@config.eventServer)
+
+        # Start interfaces
+        if @config.interfaces.http.enabled
+
+          @webInterface = new WebInterface(@config.interfaces.http.port,this)
+
+        if @config.interfaces.ws.enabled
+
+          @webSocketInterface = new WebSocketInterface(
+            processor: @
+            server: if @config.interfaces.ws.useHtttp then @webInterface.getServer() else null
+            allowedOrigins: @config.interfaces.ws.allowedOrigins
           )
-        ,true)
+
+        @webInterface.listen()
+
+        @provideGlobals((err) =>
+          if err? then @shutdown(err)
+          @runInitCode()
+        )
+
+    resolveGlobals: (list,currentNamespace) ->
+
+
+      result = {}
+
+      for item, resName of list
+
+        if item.indexOf(".") == -1
+
+          # Use current namespace
+          if @globals[currentNamespace]? and @globals[currentNamespace][item]?
+
+            result[resName] = @globals[currentNamespace][item]
+
+          else
+            @shutdown("Unable to resolve global "+currentNamespace+"."+item)
+
+        else
+
+          ns = item.split(".")[0]
+          globalVar = item.split(".")[1]
+
+          if @globals[ns]? and @globals[ns][globalVar]?
+
+            result[resName] = @globals[ns][globalVar]
+
+          else
+            @shutdown("Unable to resolve global "+item)
+
+      return result
+
+
+
+
+
+
+
+    populateGlobals: () ->
+
+      for namespaceName, namespace of @namespaces
+
+        if namespace.globals? then namespace.globals =  @resolveGlobals(namespace.globals,namespaceName)
+
+
+
+
+
+    provideGlobals: (callback) ->
+
+      asyncWait = new AsyncWait()
+
+      for namespaceName, namespace of @namespaces
+        do (namespaceName,namespace) =>
+          if namespace.provideGlobals?
+
+            @globals[namespaceName] = {}
+
+            for varName,register of namespace.provideGlobals
+              do(varName,register) =>
+                asyncWait.addStep((done) =>
+
+                  register.process({ config: @config  },(globalVar) =>
+                    if not @globals[namespaceName]? then @globals[namespaceName] = {}
+                    @globals[namespaceName][varName] = globalVar
+
+                    done()
+
+                  )
+
+                )
+
+      asyncWait.run( =>
+        @populateGlobals()
+        callback()
+      )
+          
+          
+
+
+
 
     resolveMiddleware: (currentNamespace,name) ->
       
@@ -192,21 +307,24 @@ class FloodProcessor extends EventEmitter
 
       if name.indexOf(".") ==  -1
         # Using current namespace
-        return @namespaces[currentNamespace].actions[name]
+
+
+        action = @namespaces[currentNamespace].actions[name]
       else
 
         split = name.split(".")
 
-        return @namespaces[split[0]].actions[split[1]]
+        action = @namespaces[split[0]].actions[split[1]]
+
+      return action
   
     runInitCode: ->
       
       for name, namespace of @namespaces
         
-        if namespace.onStart? then namespace.onStart({ events: @events, db: @db , processor: @ }) 
+        if namespace.onStart? then namespace.onStart({ events: @events, g: namespace.globals , processor: @ }) 
         
-        
-        
+                
     processRequest: (request) ->
 
       if not @namespaces[request.namespace]?
@@ -216,11 +334,10 @@ class FloodProcessor extends EventEmitter
         )
         return
 
-      if not @namespaces[request.namespace].actions?
+      if not @namespaces[request.namespace].actions? or not @namespaces[request.namespace].actions[request.action]? or @namespaces[request.namespace].actions[request.action].isPrivate
         request.failRaw(
           errorCode: "invalidAction"
           description: "The action '#{  request.action } is not registered in namespace '#{request.namespace}'!"
-
         )
         return
 
@@ -235,8 +352,9 @@ class FloodProcessor extends EventEmitter
 
           fn()
 
-        request.emit("done")
-
+      request.once("done", ->
+        cleanUp()
+      )
 
       @runAction({
         params: request.params,
@@ -247,12 +365,12 @@ class FloodProcessor extends EventEmitter
         callback: (err, data) ->
           if err?
             request.failRaw(err)
-            cleanUp()
+            request.emit("done")
           else
             request.send(data)
 
             if not request.supportsUpdates
-              cleanUp()
+              request.emit("done")
 
       })
 
@@ -265,6 +383,9 @@ class FloodProcessor extends EventEmitter
       if action?
 
         # Validate params
+        
+        # Check for schemas 
+
         validator.validate(params,{type: "object", mode: action.validationMode ? "shorten" ,children: action.params },(err,params) =>
 
           if err?
@@ -327,6 +448,7 @@ class FloodProcessor extends EventEmitter
                   session,
                   params,
                   listen,
+                  g: @namespaces[namespace].globals,
                   fail,
                   db: @db,
                   run,
@@ -405,7 +527,7 @@ class FloodProcessor extends EventEmitter
         else
           # Now run the middleware
 
-          middleware.process({ fail, on: @events.once, params , session , db: @db,  emit: @events.emit , callback: (params) -> callback(null,params) })
+          middleware.process({ fail, on: @events.once, params, g: @namespaces[namespace].globals , session , db: @db,  emit: @events.emit , callback: (params) -> callback(null,params) })
 
       )
 

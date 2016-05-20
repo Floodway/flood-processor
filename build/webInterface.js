@@ -1,4 +1,4 @@
-var EventEmitter, Request, Session, WebInterface, _, cookie, http, l, url, utils,
+var EventEmitter, Request, WebInterface, cookie, http, l, url, utils, uuid,
   bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; },
   extend = function(child, parent) { for (var key in parent) { if (hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
   hasProp = {}.hasOwnProperty;
@@ -13,13 +13,19 @@ utils = require("./utils");
 
 l = require("./log");
 
-Session = require("./session");
-
 url = require("url");
 
-_ = require("lodash");
-
 Request = require("./request");
+
+uuid = require("node-uuid");
+
+
+/*
+
+  WebInterface
+
+  - Supports updates: false
+ */
 
 WebInterface = (function(superClass) {
   extend(WebInterface, superClass);
@@ -48,7 +54,7 @@ WebInterface = (function(superClass) {
     });
     return req.on("end", (function(_this) {
       return function() {
-        var action, constructRequest, cookies, createSession, e, error, location, name, namespace, params, session, split, ssid, value;
+        var action, cookies, e, error, location, namespace, params, request, split, ssid;
         if (body.length !== 0) {
           try {
             params = JSON.parse(body);
@@ -58,16 +64,23 @@ WebInterface = (function(superClass) {
           }
         }
         if (params == null) {
-          params = {};
+          return res.end(JSON.stringify({
+            messageType: "error",
+            error: {
+              errorCode: "noParameters"
+            }
+          }));
         }
         if (req.headers.cookie != null) {
           cookies = cookie.parse(req.headers.cookie);
-          for (name in cookies) {
-            value = cookies[name];
-            if (name === "flood-ssid" && value.length === 36) {
-              ssid = value;
-            }
+          if ((cookies["flood-ssid"] != null) && cookies["flood-ssid"].length === 36) {
+            ssid = cookies["flood-ssid"];
           }
+        }
+        console.log(ssid);
+        if (ssid == null) {
+          ssid = uuid.v4();
+          res.setHeader("Set-Cookie", ["flood-ssid=" + ssid + ";Max-Age=" + 2592000. + ";HttpOnly"]);
         }
         location = url.parse(req.url, true);
         split = location.pathname.split("/");
@@ -83,60 +96,30 @@ WebInterface = (function(superClass) {
         }
         namespace = split[0];
         action = split[1];
-        constructRequest = function(session) {
-          var request;
-          request = new Request({
-            namespace: namespace,
-            action: action,
-            params: params,
-            session: session,
-            supportsUpdates: false,
-            sendData: function(data) {
-              var error1;
-              try {
-                return res.end(JSON.stringify(data));
-              } catch (error1) {
-                e = error1;
-                return l.error("Error while sending data back to client: " + e);
-              }
+        request = new Request({
+          namespace: namespace,
+          action: action,
+          params: params,
+          session: ssid,
+          supportsUpdates: false,
+          sendData: function(data) {
+            var error1;
+            try {
+              return res.end(JSON.stringify(data));
+            } catch (error1) {
+              e = error1;
+              return l.error("Error while sending data back to client: " + e);
             }
-          });
-          _this.requests.push(request);
-          _this.processor.processRequest(request);
-          request.once("done", function() {
-            return _this.requests.splice(_this.requests.indexOf(request), 1);
-          });
-          return req.once("close", function() {
-            return request.emit("done");
-          });
-        };
-        createSession = function() {
-          return Session.createSession(_this.processor.db, function(err, session) {
-            if (err != null) {
-              return res.end(JSON.stringify({
-                messageType: "error",
-                error: {
-                  errorCode: "internalError"
-                }
-              }));
-            }
-            l.log("Setting header");
-            res.setHeader("Set-Cookie", ["flood-ssid=" + session.ssid + ";Max-Age=" + 2592000. + ";HttpOnly"]);
-            return constructRequest(session);
-          });
-        };
-        if (ssid == null) {
-          return createSession();
-        } else {
-          session = new Session(ssid, _this.processor.db);
-          return session.verify(function(err) {
-            if (err != null) {
-              return createSession();
-            } else {
-              return constructRequest(session);
-            }
-          });
-        }
+          }
+        });
+        _this.requests.push(request);
+        _this.processor.processRequest(request);
+        request.once("done", function() {
+          return _this.requests.splice(_this.requests.indexOf(request), 1);
+        });
+        return req.once("close", function() {
+          return request.emit("done");
+        });
       };
     })(this));
   };

@@ -10,9 +10,7 @@ module.exports =
       result: {
         time: { type: "number"}
       }
-      process: ({ res }) ->
-        
+      process: ({ res, }) ->
         res(
           time: Date.now()
         )
-      

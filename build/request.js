@@ -13,7 +13,6 @@ Request = (function(superClass) {
     if (this.supportsUpdates) {
       this.once("done", (function(_this) {
         return function() {
-          console.log("Request done..");
           return _this.sendData({
             messageType: "done"
           });

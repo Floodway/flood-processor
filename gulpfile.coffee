@@ -14,10 +14,16 @@ buildDir = "./build"
 
 gulp.task("watch", ->
 	gulp.watch(srcDir,["coffee"])
+	gulp.watch("./test/src/**/*.coffee",["coffeeTests"])
 )
 
 gulp.task("coffee", ->
 	gulp.src(srcDir).pipe(coffee({bare: true})).pipe(gulp.dest(buildDir))
+
+)
+
+gulp.task("coffeeTests", ->
+	gulp.src("./test/src/**/*.coffee").pipe(coffee({bare: true})).pipe(gulp.dest("./test/"))
 )
 
 gulp.task("default",["watch"])
