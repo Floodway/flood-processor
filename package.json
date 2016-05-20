@@ -1,6 +1,6 @@
 {
   "name": "floodway",
-  "version": "1.2.8",
+  "version": "1.2.9",
   "description": "Processing service used by Floodway systems",
   "main": "./build/core.js",
   "scripts": {
