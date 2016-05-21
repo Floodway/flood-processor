@@ -194,25 +194,32 @@ class FloodProcessor extends EventEmitter
 
         @events = new FloodEventListener(@config.eventServer)
 
-        # Start interfaces
-        if @config.interfaces.http.enabled
 
-          @webInterface = new WebInterface(@config.interfaces.http.port,this)
+        @events.on("ready", =>
 
-        if @config.interfaces.ws.enabled
+          # Start interfaces
+          if @config.interfaces.http.enabled
 
-          @webSocketInterface = new WebSocketInterface(
-            processor: @
-            server: if @config.interfaces.ws.useHtttp then @webInterface.getServer() else null
-            allowedOrigins: @config.interfaces.ws.allowedOrigins
+            @webInterface = new WebInterface(@config.interfaces.http.port,this)
+
+          if @config.interfaces.ws.enabled
+
+            @webSocketInterface = new WebSocketInterface(
+              processor: @
+              server: if @config.interfaces.ws.useHtttp then @webInterface.getServer() else null
+              allowedOrigins: @config.interfaces.ws.allowedOrigins
+            )
+
+          @webInterface.listen()
+
+          @provideGlobals((err) =>
+            if err? then @shutdown(err)
+            @runInitCode()
           )
 
-        @webInterface.listen()
+        ,true)
 
-        @provideGlobals((err) =>
-          if err? then @shutdown(err)
-          @runInitCode()
-        )
+
 
     resolveGlobals: (list,currentNamespace) ->
 

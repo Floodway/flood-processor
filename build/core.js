@@ -230,25 +230,27 @@ FloodProcessor = (function(superClass) {
   FloodProcessor.prototype.start = function() {
     this.convertSchemas();
     this.events = new FloodEventListener(this.config.eventServer);
-    if (this.config.interfaces.http.enabled) {
-      this.webInterface = new WebInterface(this.config.interfaces.http.port, this);
-    }
-    if (this.config.interfaces.ws.enabled) {
-      this.webSocketInterface = new WebSocketInterface({
-        processor: this,
-        server: this.config.interfaces.ws.useHtttp ? this.webInterface.getServer() : null,
-        allowedOrigins: this.config.interfaces.ws.allowedOrigins
-      });
-    }
-    this.webInterface.listen();
-    return this.provideGlobals((function(_this) {
-      return function(err) {
-        if (err != null) {
-          _this.shutdown(err);
+    return this.events.on("ready", (function(_this) {
+      return function() {
+        if (_this.config.interfaces.http.enabled) {
+          _this.webInterface = new WebInterface(_this.config.interfaces.http.port, _this);
         }
-        return _this.runInitCode();
+        if (_this.config.interfaces.ws.enabled) {
+          _this.webSocketInterface = new WebSocketInterface({
+            processor: _this,
+            server: _this.config.interfaces.ws.useHtttp ? _this.webInterface.getServer() : null,
+            allowedOrigins: _this.config.interfaces.ws.allowedOrigins
+          });
+        }
+        _this.webInterface.listen();
+        return _this.provideGlobals(function(err) {
+          if (err != null) {
+            _this.shutdown(err);
+          }
+          return _this.runInitCode();
+        });
       };
-    })(this));
+    })(this), true);
   };
 
   FloodProcessor.prototype.resolveGlobals = function(list, currentNamespace) {
