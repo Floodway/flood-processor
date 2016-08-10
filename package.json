@@ -1,8 +1,15 @@
 {
-  "name": "flood-typed",
+  "name": "floodway",
   "version": "2.0.0",
   "description": "Floodway in TS",
-  "main": "./dist/example/example.js",
+  "main": "./dist/__entry.js",
+  "typescript": {
+      "definition": "./dist/__entry.d.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Floodway/flood-processor.git"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
