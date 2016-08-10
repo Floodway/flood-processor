@@ -1,0 +1,30 @@
+{
+    "files": [
+        "./src/__entry.ts",
+        "./src/cli/main.ts",
+        "./src/cli/main-generate-json.ts",
+        "./src/cli/main-serve-json.ts",
+        "./src/cli/main-dev.ts",
+        "./src/example/example.ts",
+        "./typings/index.d.ts",
+        "./customTypings/index.d.ts"
+    ],
+    "compilerOptions": {
+        "target": "es5",
+        "module": "commonjs",
+        "declaration": true,
+        "moduleResolution": "node",
+        "noImplicitAny": false,
+        "removeComments": true,
+        "experimentalDecorators": true,
+        "noLib": false,
+        "jsx": "react",
+        "outDir": "dist"
+    },
+    "exclude": [
+      "node_modules",
+      "dist",
+      "node_modules",
+      "typings"
+    ]
+}
