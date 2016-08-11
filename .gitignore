@@ -8,6 +8,8 @@ pids
 *.pid
 *.seed
 
+.idea
+
 # Typings
 typings
 
