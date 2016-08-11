@@ -23,6 +23,7 @@ export declare class NumberSchema extends Type {
     validate(data: any, callback: {
         (err: any, res: string): void;
     }): void;
+    allowsDecimals(): boolean;
     ceil(value: boolean): NumberSchema;
     floor(value: boolean): NumberSchema;
     round(value: boolean): NumberSchema;

@@ -125,7 +125,6 @@ export class WebSocketConnector{
                     switch(data.messageType){
 
                         case "request":
-
                             if(this.floodway.namespaceExists(data.params.namespace)){
 
                                 let namespace = this.floodway.getNamespaces()[data.params.namespace];
@@ -134,6 +133,10 @@ export class WebSocketConnector{
 
                                     let ActionI = namespace.getAction(data.params.action);
                                     let action =  new ActionI();
+
+                                    if(data.params.params == null){
+                                        data.params.params = {};
+                                    }
 
                                     action.populate({
                                         params: data.params.params,

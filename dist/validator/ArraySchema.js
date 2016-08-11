@@ -22,6 +22,12 @@ var ArraySchema = (function (_super) {
             children: this.childrenT != null ? this.childrenT.toJSON() : this.childrenLT.map(function (item) { return item.toJSON(); })
         };
     };
+    ArraySchema.prototype.getMode = function () {
+        return this.modeS;
+    };
+    ArraySchema.prototype.getChildSchema = function () {
+        return this.childrenT;
+    };
     ArraySchema.prototype.child = function (child) {
         this.childrenT = child;
         this.modeS = "uniform";

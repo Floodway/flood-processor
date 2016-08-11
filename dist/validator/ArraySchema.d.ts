@@ -9,6 +9,8 @@ export declare class ArraySchema extends Type {
         mode: String;
         children: any;
     };
+    getMode(): String;
+    getChildSchema(): Type;
     child(child: Type): this;
     children(child: Type[]): this;
     build(path?: String): ArraySchema;

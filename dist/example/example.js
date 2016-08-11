@@ -5,6 +5,7 @@ var __extends = (this && this.__extends) || function (d, b) {
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
 };
 var __entry_1 = require("../__entry");
+var NumberSchema_1 = require("../validator/NumberSchema");
 var flood = new __entry_1.Floodway();
 var webConnector = new __entry_1.WebConnector({
     port: 4040,
@@ -28,8 +29,10 @@ var TestAction = (function (_super) {
     };
     TestAction.prototype.getMetaData = function () {
         return {
-            params: new __entry_1.ObjectSchema().children({}).build("NoParams"),
-            result: new __entry_1.ObjectSchema().children({}).build("NoParams"),
+            params: new __entry_1.ObjectSchema().children({}).build("Foo.NoParams").setClassName("Foo.NoParams"),
+            result: new __entry_1.ObjectSchema().children({
+                time: new NumberSchema_1.NumberSchema()
+            }).build("TestResult"),
             errors: [],
             middleware: [],
             name: "test",
@@ -38,7 +41,9 @@ var TestAction = (function (_super) {
         };
     };
     TestAction.prototype.run = function () {
-        this.res({});
+        this.res({
+            time: Date.now()
+        });
     };
     return TestAction;
 }(__entry_1.Action));

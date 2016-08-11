@@ -7,20 +7,22 @@ export declare enum ObjectMode {
 }
 export declare class ObjectSchema extends Type {
     private childrenT;
+    private className;
     private modeS;
     constructor();
     modeToString(mode: ObjectMode): string;
-    toJSON(): {
-        type: string;
-        mode: string;
-        children: {};
-    };
+    toJSON(): any;
     hasChildren(): boolean;
     children(children: {
         [path: string]: Type;
     }): this;
     getChild(name: string): Type;
+    getChildren(): {
+        [path: string]: Type;
+    };
     build(path: string): this;
+    setClassName(className: string): this;
+    getClassName(): string;
     mode(mode: ObjectMode): this;
     validate(item: any, callback: {
         (err: Object, res: Object): void;

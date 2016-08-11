@@ -97,6 +97,10 @@ export class NumberSchema extends Type{
         callback(null,item);
     }
 
+    allowsDecimals(){
+        return this.allowDecimalsB;
+    }
+
     ceil(value: boolean): NumberSchema{
         this.ceilB = value;
         return this;

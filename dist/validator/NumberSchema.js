@@ -82,6 +82,9 @@ var NumberSchema = (function (_super) {
         }
         callback(null, item);
     };
+    NumberSchema.prototype.allowsDecimals = function () {
+        return this.allowDecimalsB;
+    };
     NumberSchema.prototype.ceil = function (value) {
         this.ceilB = value;
         return this;

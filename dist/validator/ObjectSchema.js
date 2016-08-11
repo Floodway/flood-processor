@@ -39,6 +39,7 @@ var ObjectSchema = (function (_super) {
         return {
             type: "object",
             mode: this.modeToString(this.modeS),
+            className: this.getClassName(),
             children: children
         };
     };
@@ -52,13 +53,26 @@ var ObjectSchema = (function (_super) {
     ObjectSchema.prototype.getChild = function (name) {
         return this.childrenT[name];
     };
+    ObjectSchema.prototype.getChildren = function () {
+        return this.childrenT;
+    };
     ObjectSchema.prototype.build = function (path) {
         var _this = this;
         this.path = path;
+        if (this.getClassName() == null && path.indexOf(".") == -1) {
+            this.setClassName(path);
+        }
         Object.keys(this.childrenT).map(function (key) {
             _this.childrenT[key].build(path + "[" + key + "]");
         });
         return this;
+    };
+    ObjectSchema.prototype.setClassName = function (className) {
+        this.className = className;
+        return this;
+    };
+    ObjectSchema.prototype.getClassName = function () {
+        return this.className;
     };
     ObjectSchema.prototype.mode = function (mode) {
         this.modeS = mode;

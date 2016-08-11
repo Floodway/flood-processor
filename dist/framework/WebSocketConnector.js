@@ -78,6 +78,9 @@ var WebSocketConnector = (function () {
                                 if (namespace.hasAction(data.params.action)) {
                                     var ActionI = namespace.getAction(data.params.action);
                                     var action_1 = new ActionI();
+                                    if (data.params.params == null) {
+                                        data.params.params = {};
+                                    }
                                     action_1.populate({
                                         params: data.params.params,
                                         namespace: namespace.getName(),

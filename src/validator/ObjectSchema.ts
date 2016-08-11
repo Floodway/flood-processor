@@ -14,6 +14,7 @@ export class ObjectSchema extends Type{
 
 
     private childrenT: { [path:string]:Type };
+    private className: string;
     private modeS: ObjectMode;
 
     constructor(){
@@ -36,7 +37,7 @@ export class ObjectSchema extends Type{
         }
     }
 
-    toJSON(){
+    toJSON(): any{
 
         let children = {};
         for(let key of Object.keys(this.childrenT)){
@@ -48,6 +49,7 @@ export class ObjectSchema extends Type{
         return {
             type: "object",
             mode: this.modeToString(this.modeS),
+            className: this.getClassName(),
             children
         }
     }
@@ -70,14 +72,33 @@ export class ObjectSchema extends Type{
 
     }
 
+    getChildren(){
+        return this.childrenT;
+    }
+
     build(path: string){
         this.path = path;
+        if(this.getClassName() == null && path.indexOf(".") == -1){
+            this.setClassName(path);
+        }
         Object.keys(this.childrenT).map((key) => {
             this.childrenT[key].build(path+"["+key+"]");
         });
         return this;
     }
 
+
+
+
+
+    setClassName(className: string){
+        this.className = className;
+        return this;
+    }
+
+    getClassName(){
+        return this.className;
+    }
 
     mode(mode: ObjectMode){
 

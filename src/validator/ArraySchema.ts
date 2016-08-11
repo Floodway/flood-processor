@@ -19,6 +19,15 @@ export class ArraySchema extends Type{
             children: this.childrenT != null ? this.childrenT.toJSON() : this.childrenLT.map((item) => {return item.toJSON() })
         }
     }
+
+
+    getMode(){
+        return this.modeS;
+    }
+
+    getChildSchema(){
+        return this.childrenT;
+    }
     
     child(child: Type){
         this.childrenT = child;

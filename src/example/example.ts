@@ -1,4 +1,7 @@
 import {  Floodway, WebConnector, WebSocketConnector, Namespace, Action, WebAction, HttpMethod ,ObjectSchema } from "../__entry";
+import {StringSchema} from "../validator/StringSchema";
+import {NumberSchema} from "../validator/NumberSchema";
+import {ArraySchema} from "../validator/ArraySchema";
 
 
 let flood = new Floodway();
@@ -14,6 +17,8 @@ flood.registerConnector(new WebSocketConnector({
     port: null
 }));
 
+
+
 class TestAction extends Action implements WebAction{
 
     getWebConfig(){
@@ -25,8 +30,10 @@ class TestAction extends Action implements WebAction{
 
     getMetaData(){
         return {
-            params: new ObjectSchema().children({}).build("NoParams"),
-            result: new ObjectSchema().children({}).build("NoParams"),
+            params: new ObjectSchema().children({}).build("Foo.NoParams").setClassName("Foo.NoParams"),
+            result: new ObjectSchema().children({
+                time: new NumberSchema()
+            }).build("TestResult"),
             errors: [],
             middleware: [],
             name: "test",
@@ -35,7 +42,9 @@ class TestAction extends Action implements WebAction{
         }
     }
     run(){
-        this.res({})
+        this.res({
+            time: Date.now()
+        })
     }
 }
 
