@@ -1,6 +1,6 @@
 {
   "name": "floodway",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Floodway in TS",
   "main": "./dist/__entry.js",
   "floodMain": "./dist/example/example.js",
