@@ -7,13 +7,10 @@ var __extends = (this && this.__extends) || function (d, b) {
 var __entry_1 = require("../__entry");
 var _ = require("lodash");
 var express = require("express");
-var fs = require("fs");
-var path = require("path");
 var bodyParser = require("body-parser");
 var cookieParser = require("cookie-parser");
-var multer = require("multer");
 var http_1 = require("http");
-var upload = multer({ dest: path.join(process.cwd(), "./uploads") });
+var FileEndPoints_1 = require("./FileEndPoints");
 (function (BodyMode) {
     BodyMode[BodyMode["JSON"] = 0] = "JSON";
     BodyMode[BodyMode["UrlEncoded"] = 1] = "UrlEncoded";
@@ -45,9 +42,16 @@ var WebConnector = (function (_super) {
         });
         this.app.use(cookieParser());
         this.server = http_1.createServer(this.app);
+        this.fileEndPoints = new FileEndPoints_1.FileEndPoints();
     }
     WebConnector.prototype.getServer = function () {
         return this.server;
+    };
+    WebConnector.prototype.getApp = function () {
+        return this.app;
+    };
+    WebConnector.prototype.getFloodway = function () {
+        return this.floodway;
     };
     WebConnector.prototype.getMeta = function () {
         return {
@@ -92,7 +96,6 @@ var WebConnector = (function (_super) {
         }
     };
     WebConnector.prototype.start = function (floodway) {
-        var _this = this;
         this.floodway = floodway;
         var namespaces = floodway.getNamespaces();
         for (var _i = 0, _a = Object.keys(namespaces); _i < _a.length; _i++) {
@@ -128,30 +131,7 @@ var WebConnector = (function (_super) {
                 }
             }
         }
-        this.app.post("/upload/:fileToken", upload.single("upload"), function (req, res) {
-            _this.floodway.getRedis().hgetall(req.params.fileToken, function (err, result) {
-                if (err != null || result == null) {
-                    res.status(403);
-                    if (req.file.path != null) {
-                        try {
-                            fs.unlinkSync(req.file.path);
-                        }
-                        catch (e) {
-                            console.error("Deleting file failed...");
-                        }
-                    }
-                    res.json({
-                        status: false
-                    });
-                }
-                else {
-                    console.log(result);
-                    res.json({
-                        status: true,
-                    });
-                }
-            });
-        });
+        this.fileEndPoints.register(this);
         this.server.listen(this.config.port);
     };
     return WebConnector;

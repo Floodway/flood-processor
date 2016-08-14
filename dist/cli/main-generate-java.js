@@ -6,7 +6,8 @@ var path = require("path");
 var findMain_1 = require("./findMain");
 program
     .parse(process.argv);
-var main = findMain_1.default();
+var files = findMain_1.default();
+var main = files.main;
 function isObjectSchema(input) {
     return input.getClassName !== undefined;
 }
@@ -19,7 +20,13 @@ function isArraySchema(input) {
 function makeClassName(input) {
     return input.charAt(0).toUpperCase() + input.slice(1);
 }
-var outdDir = path.join(process.cwd(), "./java");
+var outDir;
+if (files.packageJson.javaOut == null) {
+    outDir = path.join(process.cwd(), "./java");
+}
+else {
+    outDir = files.packageJson.javaOut;
+}
 function getType(schema) {
     if (isObjectSchema(schema)) {
         return schema.getClassName();
@@ -97,13 +104,13 @@ function generateFunctions(namespace) {
     });
     return result;
 }
-if (!fs.existsSync(outdDir)) {
-    fs.mkdirSync(outdDir);
+if (!fs.existsSync(outDir)) {
+    fs.mkdirSync(outDir);
 }
 Object.keys(main.getNamespaces()).map(function (name) {
     var namespace = main.getNamespace(name);
     var schemas = generateSchemas(namespace);
     var functions = generateFunctions(namespace);
     var file = "\n        /*\n        * This class was automatically generate by Floodway.\n        */\n        class " + makeClassName(namespace.getName()) + "{\n            " + schemas + "\n            " + functions + "\n        }\n    ";
-    fs.writeFileSync(path.join(outdDir, makeClassName(namespace.getName()) + ".java"), file);
+    fs.writeFileSync(path.join(outDir, makeClassName(namespace.getName()) + ".java"), file);
 });

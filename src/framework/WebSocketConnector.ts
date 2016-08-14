@@ -194,7 +194,7 @@ export class WebSocketConnector{
                         case "cancelRequest":
 
                             var requestsFiltered = requests.filter(function(req: Action){
-                                return req.requestId == data.params.requestId;
+                                return req.requestId == data.requestId;
                             });
 
                             for(let item of requestsFiltered){

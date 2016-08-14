@@ -28,8 +28,11 @@ export declare class WebConnector extends Connector {
     private app;
     private floodway;
     private server;
+    private fileEndPoints;
     constructor(config: WebConnectorConfig);
     getServer(): Server;
+    getApp(): any;
+    getFloodway(): Floodway;
     getMeta(): {
         name: string;
         additionalData: {

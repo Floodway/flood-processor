@@ -129,7 +129,7 @@ var WebSocketConnector = (function () {
                             break;
                         case "cancelRequest":
                             var requestsFiltered = requests.filter(function (req) {
-                                return req.requestId == data.params.requestId;
+                                return req.requestId == data.requestId;
                             });
                             for (var _i = 0, requestsFiltered_1 = requestsFiltered; _i < requestsFiltered_1.length; _i++) {
                                 var item = requestsFiltered_1[_i];

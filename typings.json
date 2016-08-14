@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "inquirer": "registry:npm/inquirer#1.0.0+20160723033700",
     "lodash": "registry:npm/lodash#4.0.0+20160701205107",
     "node-uuid": "registry:npm/node-uuid#1.4.7+20160503013124",
     "redis": "registry:npm/redis#0.12.1+20160729031738",
@@ -19,6 +20,7 @@
     "multer": "registry:dt/multer#0.0.0+20160726135055",
     "node": "registry:dt/node#6.0.0+20160709114037",
     "serve-static": "registry:dt/serve-static#0.0.0+20160606155157",
+    "superagent": "registry:dt/superagent#2.0.0+20160811085415",
     "ws": "registry:dt/ws#0.0.0+20160405094435"
   }
 }

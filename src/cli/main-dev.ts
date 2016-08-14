@@ -7,8 +7,8 @@ import findMain from "./findMain";
 program
     .parse(process.argv);
 
-let main = findMain();
+let files = findMain();
 
-if(main != null){
-    main.start();
+if(files.main != null){
+    files.main.start();
 }

@@ -9,8 +9,9 @@ import findMain from "./findMain";
 program
     .parse(process.argv);
 
+let files = findMain();
 
-let main: Floodway = findMain();
+let main: Floodway = files.main;
 
 function isObjectSchema(input: any) : input is ObjectSchema{
     return input.getClassName !== undefined;
@@ -28,7 +29,15 @@ function makeClassName(input: string){
     return input.charAt(0).toUpperCase()+input.slice(1);
 }
 
-let outdDir = path.join(process.cwd(),"./java");
+
+
+let outDir;
+if(files.packageJson.javaOut == null){
+    outDir = path.join(process.cwd(),"./java");
+}else{
+    outDir = files.packageJson.javaOut;
+}
+
 
 
 function getType(schema: Type){
@@ -169,8 +178,8 @@ function generateFunctions(namespace: Namespace){
 }
 
 
-if(!fs.existsSync(outdDir)){
-    fs.mkdirSync(outdDir);
+if(!fs.existsSync(outDir)){
+    fs.mkdirSync(outDir);
 }
 
 Object.keys(main.getNamespaces()).map((name) => {
@@ -189,7 +198,7 @@ Object.keys(main.getNamespaces()).map((name) => {
         }
     `;
 
-    fs.writeFileSync(path.join(outdDir,makeClassName(namespace.getName())+".java"),file);
+    fs.writeFileSync(path.join(outDir,makeClassName(namespace.getName())+".java"),file);
 
 });
 

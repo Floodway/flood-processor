@@ -3,24 +3,13 @@ import * as express from "express";
 import * as program from "commander";
 import *  as path from "path";
 import {exec} from "child_process";
+import findMain from "./findMain";
 
 program
     .parse(process.argv);
 
 
-let packageJsonPath  = path.join(process.cwd(),"./package.json");
-let packageJson;
-try{
-    packageJson = require(packageJsonPath);
-}catch(e){
-    console.error("Could not open package.json file. Make sure you are at root level of your project",e);
-    process.exit(1);
-}
-let sourcePath;
-if(packageJson != null){
-    sourcePath = path.join(process.cwd(),packageJson.main);
-}
-let main;
+let { main, packageJson } = findMain();
 
 
 

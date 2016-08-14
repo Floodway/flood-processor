@@ -1,7 +1,9 @@
-import {  Floodway, WebConnector, WebSocketConnector, Namespace, Action, WebAction, HttpMethod ,ObjectSchema } from "../__entry";
+import {  Floodway, WebConnector, WebSocketConnector, Namespace, Action, WebAction, HttpMethod ,ObjectSchema, FileSchema } from "../__entry";
 import {StringSchema} from "../validator/StringSchema";
 import {NumberSchema} from "../validator/NumberSchema";
 import {ArraySchema} from "../validator/ArraySchema";
+import {UploadAction} from "../framework/UploadAction";
+import {DownloadAction} from "../framework/DownloadAction";
 
 
 let flood = new Floodway();
@@ -47,6 +49,8 @@ class TestAction extends Action implements WebAction{
         })
     }
 }
+
+
 
 class ExampleNamespace extends Namespace{
 

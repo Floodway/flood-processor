@@ -1,6 +1,6 @@
 import { Floodway } from "../__entry";
 import * as path from "path";
-export default () :Floodway =>  {
+export default (): { main: Floodway, packageJson: any } =>  {
 
     // Find package JSON
     let packageJson;
@@ -25,7 +25,10 @@ export default () :Floodway =>  {
 
         if(main.start != null){
 
-            return main;
+            return {
+                main,
+                packageJson
+            };
 
         }else{
             console.error("Could not find floodway instance. Make sure it is exported");

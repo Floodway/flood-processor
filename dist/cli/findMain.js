@@ -20,7 +20,10 @@ exports.default = function () {
             throw e;
         }
         if (main.start != null) {
-            return main;
+            return {
+                main: main,
+                packageJson: packageJson
+            };
         }
         else {
             console.error("Could not find floodway instance. Make sure it is exported");

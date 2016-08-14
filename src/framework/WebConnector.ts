@@ -1,18 +1,10 @@
 import {Floodway, Connector, Namespace, Utils, Action, IAction} from "../__entry";
-
 import * as _ from "lodash";
 import * as express from "express";
-import * as fs from "fs";
-import * as path from "path";
 import * as bodyParser from "body-parser";
 import * as cookieParser from "cookie-parser";
-import * as multer from "multer";
 import {Server,createServer} from "http";
-
-
-let upload = multer({ dest : path.join(process.cwd(),"./uploads")});
-
-
+import {FileEndPoints} from "./FileEndPoints";
 
 export interface WebConnectorConfig {
     port:number;
@@ -56,6 +48,7 @@ export class WebConnector extends Connector {
     private app;
     private floodway: Floodway;
     private server: Server;
+    private fileEndPoints: FileEndPoints;
 
     constructor(config: WebConnectorConfig) {
         super();
@@ -70,11 +63,21 @@ export class WebConnector extends Connector {
             next();
         });
         this.app.use(cookieParser());
+
         this.server = createServer(this.app);
+        this.fileEndPoints = new FileEndPoints();
     }
 
     getServer(){
         return this.server;
+    }
+
+    getApp(){
+        return this.app;
+    }
+
+    getFloodway(){
+        return this.floodway;
     }
 
     getMeta(){
@@ -228,36 +231,8 @@ export class WebConnector extends Connector {
 
         }
 
-        this.app.post("/upload/:fileToken",upload.single("upload"),(req,res) => {
-
-            this.floodway.getRedis().hgetall(req.params.fileToken,(err,result) => {
-
-                if(err != null || result == null){
-                    res.status(403);
-                    if(req.file.path != null){
-                        try{
-                            fs.unlinkSync(req.file.path);
-                        }catch(e){
-                            console.error("Deleting file failed...");
-                        }
-                    }
-                    res.json({
-                        status: false
-                    })
-                }else{
-                    console.log(result);
-                    res.json({
-                        status: true,
-                    })
-                }
-
-            });
-
-
-        });
-
+        this.fileEndPoints.register(this);
         this.server.listen(this.config.port);
-
     }
 
 }

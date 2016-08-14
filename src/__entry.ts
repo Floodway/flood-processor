@@ -10,8 +10,13 @@ export { Namespace } from "./framework/Namespace";
 export { Utils } from "./utils/utils";
 export { Log } from "./utils/log";
 export { Cookie } from "./utils/Cookie";
+export { UploadAction} from "./framework/UploadAction";
+export { FileCallback } from "./framework/FileCallback";
 export { AsyncGroup } from "./utils/AsyncGroup";
-
+export { FileSchema} from "./framework/FileSchema";
+export { DownloadAction } from "./framework/DownloadAction";
+export { UploadRedisSchema } from "./framework/UploadRedisSchema";
+export { DownloadRedisSchema } from "./framework/DownloadRedisSchema";
 
 // Validator
 export { Type } from "./validator/Type";
