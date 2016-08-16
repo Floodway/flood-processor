@@ -1,8 +1,11 @@
-import { WebAction, Action, ObjectSchema, Type, FileCallback, Middleware, WebConfig } from "../__entry";
-export declare abstract class DownloadAction extends Action implements WebAction {
-    abstract getWebConfig(): WebConfig;
+import { WebAction, ObjectSchema, Type, Middleware } from "../__entry";
+import { HttpMethod } from "./HttpMethod";
+export declare abstract class DownloadAction extends WebAction {
     abstract getName(): string;
-    getMetaData(): {
+    static isDownloadAction(input: any): input is DownloadAction;
+    getHttpMethods(): HttpMethod[];
+    isDAction(): boolean;
+    getWebMetaData(): {
         name: string;
         supportsUpdates: boolean;
         description: string;
@@ -12,13 +15,7 @@ export declare abstract class DownloadAction extends Action implements WebAction
         errors: any[];
     };
     getMiddleware(): Middleware[];
-    getErrors(): any[];
-    abstract getFilePath(callback: {
-        (err: any, path: string);
-    }): any;
     abstract getParams(): Type;
-    getResult(): ObjectSchema;
-    getExpireTime(): Number;
-    abstract getCallbackInfo(): FileCallback;
-    run(): void;
+    getErrors(): any[];
+    abstract run(): any;
 }

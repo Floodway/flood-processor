@@ -1,10 +1,12 @@
 "use strict";
+var ObjectSchema_1 = require("../validator/ObjectSchema");
 var Middleware = (function () {
     function Middleware() {
     }
     Middleware.prototype.getParamsName = function () {
-        if (this.getMetaData().params.isBuilt()) {
-            return this.getMetaData().params.path;
+        var params = this.getMetaData().params;
+        if (ObjectSchema_1.ObjectSchema.isObjectSchema(params)) {
+            return params.getClassName();
         }
         else {
             return this.makeClassName(this.getMetaData().name) + "Params";
@@ -37,7 +39,7 @@ var Middleware = (function () {
                 console.log(_this.getMetaData().params.toJSON());
                 action.fail("invalidParams", err);
             }
-        });
+        }, "root(Middleware: " + this.getMetaData().name + ")");
     };
     return Middleware;
 }());

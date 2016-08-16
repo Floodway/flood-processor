@@ -1,6 +1,7 @@
 "use strict";
 var __entry_1 = require("../__entry");
 var ws_1 = require("ws");
+var DownloadAction_1 = require("./DownloadAction");
 var WebSocketConnection = (function () {
     function WebSocketConnection() {
     }
@@ -78,6 +79,16 @@ var WebSocketConnector = (function () {
                                 if (namespace.hasAction(data.params.action)) {
                                     var ActionI = namespace.getAction(data.params.action);
                                     var action_1 = new ActionI();
+                                    if (DownloadAction_1.DownloadAction.isDownloadAction(action_1)) {
+                                        return socket.send(JSON.stringify({
+                                            messageType: "error",
+                                            requestId: data.requestId,
+                                            params: {
+                                                errorCode: "unknownAction",
+                                                description: "The action  " + data.params.action + " does not exist!"
+                                            }
+                                        }));
+                                    }
                                     if (data.params.params == null) {
                                         data.params.params = {};
                                     }

@@ -7,6 +7,7 @@ import {
 import * as _ from "lodash";
 import { EventEmitter } from "events";
 import { RedisClient } from "redis";
+import {ObjectSchema} from "../validator/ObjectSchema";
 
 
 
@@ -68,20 +69,24 @@ export abstract class Action extends EventEmitter{
     }
 
 
+
     getParamsName(): string{
-        if(!this.getMetaData().params.isBuilt()){
-            return this.makeClassName(this.getMetaData().name)+"Params";
+        let params: Type | ObjectSchema = this.getMetaData().params;
+        if(ObjectSchema.isObjectSchema(params)){
+            params.getClassName();
         }else{
-            return this.getMetaData().params.path;
+            return this.makeClassName(this.getMetaData().name)+"Params";
         }
 
     }
 
-    getResultName(){
-        if(!this.getMetaData().result.isBuilt()){
-            return this.makeClassName(this.getMetaData().name)+"Result";
+    getResultName(): string{
+
+        let result: Type | ObjectSchema = this.getMetaData().result;
+        if(ObjectSchema.isObjectSchema(result)){
+            result.getClassName();
         }else{
-            return this.getMetaData().result.path;
+            return this.makeClassName(this.getMetaData().name)+"Result";
         }
     }
 
@@ -127,7 +132,7 @@ export abstract class Action extends EventEmitter{
                 this.params = result;
                 this.run();
             }
-        });
+        },"root(ActionParams)");
     }
 
     nextMiddleware(){
@@ -163,7 +168,7 @@ export abstract class Action extends EventEmitter{
             if(!this.getMetaData().supportsUpdates || final){
                 this.emit("done");
             }
-        });
+        },"root(ActionResult)");
     }
     // Whenever something fails
     fail(errorCode: string,additionalData?: any){

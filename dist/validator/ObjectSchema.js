@@ -15,11 +15,15 @@ var AsyncGroup_1 = require("../utils/AsyncGroup");
 var ObjectMode = exports.ObjectMode;
 var ObjectSchema = (function (_super) {
     __extends(ObjectSchema, _super);
-    function ObjectSchema() {
+    function ObjectSchema(className) {
         _super.call(this);
         this.childrenT = {};
-        this.modeS = ObjectMode.SHORTEN;
+        this.className = this.makeClassName(className);
+        this.modeS = ObjectMode.LOOSE;
     }
+    ObjectSchema.prototype.makeClassName = function (input) {
+        return input.charAt(0).toUpperCase() + input.slice(1);
+    };
     ObjectSchema.prototype.modeToString = function (mode) {
         switch (mode) {
             case ObjectMode.LOOSE:
@@ -29,6 +33,9 @@ var ObjectSchema = (function (_super) {
             case ObjectMode.STRICT:
                 return "STRICT";
         }
+    };
+    ObjectSchema.isObjectSchema = function (input) {
+        return input.getClassName !== undefined;
     };
     ObjectSchema.prototype.toJSON = function () {
         var children = {};
@@ -56,21 +63,6 @@ var ObjectSchema = (function (_super) {
     ObjectSchema.prototype.getChildren = function () {
         return this.childrenT;
     };
-    ObjectSchema.prototype.build = function (path) {
-        var _this = this;
-        this.path = path;
-        if (this.getClassName() == null && path.indexOf(".") == -1) {
-            this.setClassName(path);
-        }
-        Object.keys(this.childrenT).map(function (key) {
-            _this.childrenT[key].build(path + "[" + key + "]");
-        });
-        return this;
-    };
-    ObjectSchema.prototype.setClassName = function (className) {
-        this.className = className;
-        return this;
-    };
     ObjectSchema.prototype.getClassName = function () {
         return this.className;
     };
@@ -78,19 +70,22 @@ var ObjectSchema = (function (_super) {
         this.modeS = mode;
         return this;
     };
-    ObjectSchema.prototype.validate = function (item, callback) {
+    ObjectSchema.prototype.validate = function (item, callback, path) {
         var _this = this;
+        if (path === void 0) { path = "root"; }
         var group;
         var newValue = {};
         if (item == null) {
-            callback({ error: "notPresent", path: this.path }, null);
+            return callback({ error: "notPresent", path: path }, null);
         }
         if (this.modeS == ObjectMode.STRICT) {
             var valid = true;
+            var missingKey = void 0;
             for (var _i = 0, _a = Object.keys(this.childrenT); _i < _a.length; _i++) {
                 var key = _a[_i];
                 if (!item.hasOwnProperty(key)) {
                     valid = false;
+                    missingKey = key;
                     break;
                 }
             }
@@ -100,7 +95,9 @@ var ObjectSchema = (function (_super) {
             if (!valid) {
                 return callback({
                     error: "invalidKeys",
-                    description: "Not all or too many keys supplied."
+                    description: "Not all or too many keys supplied.",
+                    path: path,
+                    missingKey: missingKey
                 }, null);
             }
         }
@@ -142,7 +139,7 @@ var ObjectSchema = (function (_super) {
                         }
                         callback(null, null);
                     }
-                });
+                }, path + "." + key);
             });
         };
         var this_1 = this;

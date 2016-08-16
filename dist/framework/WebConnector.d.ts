@@ -4,31 +4,11 @@ import { Server } from "http";
 export interface WebConnectorConfig {
     port: number;
 }
-export declare enum BodyMode {
-    JSON = 0,
-    UrlEncoded = 1,
-}
-export declare enum HttpMethod {
-    GET = 0,
-    POST = 1,
-    PATCH = 2,
-    DELETE = 3,
-    HEAD = 4,
-}
-export interface WebConfig {
-    methods: HttpMethod[];
-    url: string;
-    bodyMode?: BodyMode;
-}
-export interface WebAction {
-    getWebConfig(): WebConfig;
-}
 export declare class WebConnector extends Connector {
     private config;
     private app;
     private floodway;
     private server;
-    private fileEndPoints;
     constructor(config: WebConnectorConfig);
     getServer(): Server;
     getApp(): any;

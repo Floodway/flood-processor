@@ -1,4 +1,5 @@
 import { Type, Action, Err } from "../__entry";
+import {ObjectSchema} from "../validator/ObjectSchema";
 
 export interface MiddlewareMeta{
     name: string;
@@ -14,10 +15,11 @@ export abstract class Middleware{
     abstract getMetaData(): MiddlewareMeta;
 
     getParamsName(): string{
-        if(this.getMetaData().params.isBuilt()){
-            return this.getMetaData().params.path;
+        let params = this.getMetaData().params;
+        if(ObjectSchema.isObjectSchema(params)){
+            return params.getClassName();
         }else{
-            return this.makeClassName(this.getMetaData().name)+"Params";
+            return this.makeClassName(this.getMetaData().name)+"Params"
         }
     }
 
@@ -51,7 +53,7 @@ export abstract class Middleware{
                 action.fail("invalidParams",err);
             }
 
-        });
+        },"root(Middleware: "+this.getMetaData().name+")");
     }
 
     abstract run(action: Action);

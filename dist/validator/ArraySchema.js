@@ -6,6 +6,7 @@ var __extends = (this && this.__extends) || function (d, b) {
 };
 var Type_1 = require("./Type");
 var _ = require("lodash");
+var chalk = require("chalk");
 var AsyncGroup_1 = require("../utils/AsyncGroup");
 var ArraySchema = (function (_super) {
     __extends(ArraySchema, _super);
@@ -38,61 +39,40 @@ var ArraySchema = (function (_super) {
         this.modeS = "unique";
         return this;
     };
-    ArraySchema.prototype.build = function (path) {
-        if (path === void 0) { path = "root"; }
-        if (this.modeS == "uniform") {
-            this.childrenT.build(path + ".child");
-        }
-        else {
-            var i = 0;
-            for (var _i = 0, _a = this.childrenLT; _i < _a.length; _i++) {
-                var child = _a[_i];
-                child.build(path + "[" + i + "]");
-                i++;
-            }
-        }
-        return this;
-    };
-    ArraySchema.prototype.validate = function (input, callback) {
+    ArraySchema.prototype.validate = function (input, callback, path) {
         var _this = this;
+        if (path === void 0) { path = "root"; }
         var data;
         if (_.isArray(input)) {
             data = input;
         }
-        var group = new AsyncGroup_1.AsyncGroup(function (err, result) {
-            if (err != null) {
-                err.path = _this.path + "[" + err.index + "]";
-                delete err.index;
-            }
-            callback(err, result);
-        });
+        if (path == "root") {
+            console.log(chalk.red("Warning: ArraySchema at Root. Please use an Object to ensure proper conversion to Java Classes."));
+        }
+        var group = new AsyncGroup_1.AsyncGroup(callback);
         switch (this.modeS) {
             case "uniform":
-                var _loop_1 = function(child) {
+                data.map(function (item, index) {
                     group.add(function (done) {
-                        _this.childrenT.validate(child, done);
+                        _this.childrenT.validate(item, done, path + "[" + index + "]");
                     });
-                };
-                for (var _i = 0, data_1 = data; _i < data_1.length; _i++) {
-                    var child = data_1[_i];
-                    _loop_1(child);
-                }
+                });
                 break;
             case "unique":
                 if (data.length <= this.childrenLT.length) {
-                    var _loop_2 = function(index) {
+                    var _loop_1 = function(index) {
                         group.add(function (done) {
-                            _this.childrenLT[index].validate(data[index], done);
+                            _this.childrenLT[index].validate(data[index], done, path + "[" + index + "]");
                         });
                     };
                     for (var index in data) {
-                        _loop_2(index);
+                        _loop_1(index);
                     }
                 }
                 else {
                     callback({
-                        error: "arrayMismatch",
-                        path: this.path
+                        error: "arrayLengthMismatch",
+                        path: path
                     }, null);
                 }
         }

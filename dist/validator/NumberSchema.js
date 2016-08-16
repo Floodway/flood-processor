@@ -26,7 +26,8 @@ var NumberSchema = (function (_super) {
             whitelist: this.whiteListN
         };
     };
-    NumberSchema.prototype.validate = function (data, callback) {
+    NumberSchema.prototype.validate = function (data, callback, path) {
+        if (path === void 0) { path = "root"; }
         var item;
         try {
             item = Number(data);
@@ -34,7 +35,7 @@ var NumberSchema = (function (_super) {
         catch (e) {
             callback({
                 error: "notNumber",
-                path: this.path
+                path: path
             }, null);
         }
         if (item != null) {
@@ -51,7 +52,8 @@ var NumberSchema = (function (_super) {
                 if (this.blackListN.indexOf(item) != -1) {
                     return callback({
                         error: "invalidValue",
-                        disallowedItems: this.blackListN
+                        disallowedItems: this.blackListN,
+                        path: path
                     }, null);
                 }
             }
@@ -59,7 +61,8 @@ var NumberSchema = (function (_super) {
                 if (this.whiteListN.indexOf(item) == -1) {
                     return callback({
                         error: "invalidValue",
-                        allowedItems: this.whiteListN
+                        allowedItems: this.whiteListN,
+                        path: path
                     }, null);
                 }
             }
@@ -67,7 +70,8 @@ var NumberSchema = (function (_super) {
                 if (item < this.minN) {
                     return callback({
                         error: "tooSmallValue",
-                        min: this.minN
+                        min: this.minN,
+                        path: path
                     }, null);
                 }
             }
@@ -75,7 +79,8 @@ var NumberSchema = (function (_super) {
                 if (item > this.maxN) {
                     return callback({
                         error: "tooBigValue",
-                        max: this.maxN
+                        max: this.maxN,
+                        path: path
                     }, null);
                 }
             }

@@ -21,6 +21,10 @@ export abstract class Namespace{
     }
 
 
+    getRootUrl(): string{
+        return "/"+this.getName();
+    }
+
     // Provide floodway with the actions this namespace integrates
     getActions(): { [path:string]:IAction } { return this.actions}
 

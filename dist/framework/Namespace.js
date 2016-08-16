@@ -8,6 +8,9 @@ var Namespace = (function () {
     };
     Namespace.prototype.start = function (instance) {
     };
+    Namespace.prototype.getRootUrl = function () {
+        return "/" + this.getName();
+    };
     Namespace.prototype.getActions = function () { return this.actions; };
     Namespace.prototype.getAction = function (name) { return this.actions[name]; };
     Namespace.prototype.hasAction = function (name) { return this.actions[name] != null; };

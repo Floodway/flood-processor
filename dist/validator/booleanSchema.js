@@ -15,7 +15,8 @@ var BooleanSchema = (function (_super) {
             type: "boolean"
         };
     };
-    BooleanSchema.prototype.validate = function (data, callback) {
+    BooleanSchema.prototype.validate = function (data, callback, path) {
+        if (path === void 0) { path = "root"; }
         var item = data == true;
         if (this.inverseB) {
             item = !item;

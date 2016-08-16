@@ -2,8 +2,8 @@ import {  Floodway, WebConnector, WebSocketConnector, Namespace, Action, WebActi
 import {StringSchema} from "../validator/StringSchema";
 import {NumberSchema} from "../validator/NumberSchema";
 import {ArraySchema} from "../validator/ArraySchema";
-import {UploadAction} from "../framework/UploadAction";
 import {DownloadAction} from "../framework/DownloadAction";
+import {BodyMode} from "../framework/BodyMode";
 
 
 let flood = new Floodway();
@@ -21,25 +21,29 @@ flood.registerConnector(new WebSocketConnector({
 
 
 
-class TestAction extends Action implements WebAction{
+class TestAction extends WebAction{
 
-    getWebConfig(){
-        return {
-            url: "/",
-            methods: [HttpMethod.GET]
-        }
+    getHttpMethods(){
+        return [HttpMethod.POST]
     }
 
-    getMetaData(){
+    getWebMetaData(){
         return {
-            params: new ObjectSchema().children({}).build("Foo.NoParams").setClassName("Foo.NoParams"),
-            result: new ObjectSchema().children({
+            params: new ObjectSchema("TestParamms").children({
+                items: new ArraySchema().child(new ObjectSchema("TestChild").children({
+                    meta: new ObjectSchema("meta").children({
+                        foo: new StringSchema(),
+                        bar: new StringSchema()
+                    }),
+                    bar: new StringSchema()
+                }))
+            }),
+            result: new ObjectSchema("TestActionResult").children({
                 time: new NumberSchema()
-            }).build("TestResult"),
+            }),
             errors: [],
             middleware: [],
             name: "test",
-            supportsUpdates: false,
             description: "Test action"
         }
     }
@@ -51,6 +55,61 @@ class TestAction extends Action implements WebAction{
 }
 
 
+class ExampleDownload extends DownloadAction{
+
+
+    getName(){
+        return "download"
+    }
+
+    getParams(){
+        return new ObjectSchema("NoParams").children({})
+    }
+
+    run(){
+
+        this.res({
+            path: "C:\\im.jpg"
+        })
+    }
+
+}
+
+class ExampleUpload extends WebAction{
+
+    allowUploads(){
+        return true;
+    }
+
+    getHttpMethods(){
+        return [HttpMethod.POST];
+    }
+
+    getBodyMode(){
+        return BodyMode.UrlEncoded;
+    }
+
+    getWebMetaData(){
+        return {
+            name: "upload",
+            description: "Uploads a file",
+            result: new ObjectSchema("NoRes").children({}),
+            params: new ObjectSchema("ExampleUploadParams").children({
+                file: FileSchema
+            }),
+            errors: [],
+            middleware: []
+        }
+    }
+
+    run(){
+        console.log(this.params);
+        this.res({});
+    }
+
+
+
+}
 
 class ExampleNamespace extends Namespace{
 
@@ -61,6 +120,8 @@ class ExampleNamespace extends Namespace{
     constructor(){
         super();
         this.action(TestAction);
+        this.action(ExampleDownload);
+        this.action(ExampleUpload);
     }
 
 }

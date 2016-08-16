@@ -13,10 +13,9 @@ export declare class ArraySchema extends Type {
     getChildSchema(): Type;
     child(child: Type): this;
     children(child: Type[]): this;
-    build(path?: String): ArraySchema;
     validate(input: any[], callback: {
         (err: any, res: string): void;
-    }): void;
+    }, path?: string): void;
 }
 export declare enum ArrayMode {
     Index = 0,

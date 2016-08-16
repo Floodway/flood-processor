@@ -4,6 +4,7 @@ import { Cookie, Action, Log, Floodway } from "../__entry";
 import { Server } from "ws";
 import *  as Socket from "ws";
 import {Server as WebServer , ServerRequest } from "http";
+import {DownloadAction} from "./DownloadAction";
 
 export interface WebSocketConnectorConfig{
 
@@ -131,8 +132,24 @@ export class WebSocketConnector{
 
                                 if(namespace.hasAction(data.params.action)){
 
+
+
                                     let ActionI = namespace.getAction(data.params.action);
                                     let action =  new ActionI();
+
+                                    //  Don't make fileActions accessible. Else paths will be exposed.
+                                    if(DownloadAction.isDownloadAction(action)){
+
+                                        return socket.send(JSON.stringify({
+                                            messageType: "error",
+                                            requestId: data.requestId,
+                                            params: {
+                                                errorCode: "unknownAction",
+                                                description: `The action  ${ data.params.action } does not exist!`
+                                            }
+                                        }));
+
+                                    }
 
                                     if(data.params.params == null){
                                         data.params.params = {};

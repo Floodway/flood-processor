@@ -38,23 +38,11 @@ export class MapSchema extends Type{
     }
 
 
-    validate(data: any,callback: AsyncGroupCallback){
+    validate(data: any,callback: AsyncGroupCallback,path="root"){
 
         let result = {};
 
-        let group = new AsyncGroup((err: any,res: any) => {
-
-            if(err != null){
-
-                callback(err,null);
-
-            }else{
-
-                callback(null,result);
-
-            }
-
-        });
+        let group = new AsyncGroup(callback);
 
 
         for(let key : string of Object.keys(data)){
@@ -63,42 +51,35 @@ export class MapSchema extends Type{
             group.add((callback: AsyncGroupCallback) => {
 
 
-                let validateItem = (key: string,item: any) => {
+                let validateItem = (newKey: string,item: any) => {
 
 
                     this.valueSchema.validate(item,(err: any,res: any) => {
 
                         if(err != null){
-
-                            err.path = this.path+"["+key+"]";
-
                             return callback(err,null);
                         }
 
-
-                        result[key] = item;
+                        result[newKey] = item;
 
                         callback(null,null);
 
 
-                    });
+                    },path+"["+key+"]");
 
 
                 };
 
-                if(this.keySchemaT != null){
-
+                if(this.keySchemaT == null){
+                    validateItem(key,data[key]);
+                }else{
                     this.keySchemaT.validate(key,(err: any, res: any) =>{
 
                         if(err != null){
-                            err.path = this.path+"["+key+"] (key)";
                             return callback(err,null)
                         }
-
-
-
+                        validateItem(res,data[key]);
                     })
-
                 }
 
             });

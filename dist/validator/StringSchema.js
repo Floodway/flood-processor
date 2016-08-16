@@ -25,7 +25,8 @@ var StringSchema = (function (_super) {
             lowercase: this.toLowerCaseB
         };
     };
-    StringSchema.prototype.validate = function (data, callback) {
+    StringSchema.prototype.validate = function (data, callback, path) {
+        if (path === void 0) { path = "root"; }
         var item;
         if (_.isString(data)) {
             item = data;
@@ -33,7 +34,7 @@ var StringSchema = (function (_super) {
         else {
             return callback({
                 error: "notString",
-                path: this.path
+                path: path
             }, null);
         }
         if (this.lengthN != null) {
@@ -42,7 +43,7 @@ var StringSchema = (function (_super) {
                     error: "invalidLength",
                     value: item,
                     neededLength: this.lengthN,
-                    path: this.path
+                    path: path
                 }, null);
             }
         }
@@ -50,7 +51,7 @@ var StringSchema = (function (_super) {
             if (this.minLengthN > item.length) {
                 return callback({
                     error: "tooShort",
-                    path: this.path
+                    path: path
                 }, null);
             }
         }
@@ -58,7 +59,7 @@ var StringSchema = (function (_super) {
             if (this.maxLengthN < item.length) {
                 return callback({
                     error: "tooLong",
-                    path: this.path
+                    path: path
                 }, null);
             }
         }
@@ -73,7 +74,7 @@ var StringSchema = (function (_super) {
         }
         if (this.oneOfS != null) {
             if (this.oneOfS.indexOf(item) == -1) {
-                return callback({ error: "notFound", allowedItems: this.oneOfS, path: this.path }, null);
+                return callback({ error: "invalidValue", allowedItems: this.oneOfS, path: path }, null);
             }
         }
         callback(null, item);

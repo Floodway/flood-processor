@@ -2,7 +2,7 @@
 import *  as fs from "fs";
 import * as path from "path";
 
-import {WebConfig, BodyMode, HttpMethod, WebAction, Action} from "../__entry";
+import {BodyMode, HttpMethod, WebAction, Action} from "../__entry";
 
 function isWebAction(action:any):action is WebAction {
     return action.getWebConfig !== undefined;
@@ -42,15 +42,14 @@ export default (main,packageJson,writeToFile=false) => {
 
                     if(isWebAction(action)){
 
-                        let webConfig: WebConfig = action.getWebConfig();
 
                         let res = {
                             methods: [],
-                            path: webConfig.url,
-                            bodyMode: webConfig.bodyMode == BodyMode.JSON ? "JSON" : "UrlEncoded"
+                            path: action.getUrl(),
+                            bodyMode: action.getBodyMode() == BodyMode.JSON ? "JSON" : "UrlEncoded"
                         };
 
-                        webConfig.methods.map((method) => {
+                        action.getHttpMethods().map((method) => {
                             switch(method){
                                 case HttpMethod.DELETE:
                                     res.methods.push("DELETE");
@@ -86,7 +85,7 @@ export default (main,packageJson,writeToFile=false) => {
                                 res.params = {
                                     schema: res.params.toJSON(),
                                     name: item.getParamsName()
-                                }
+                                };
                                 return res;
                             }),
                             possibleErrors: meta.errors,

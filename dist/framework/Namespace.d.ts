@@ -6,6 +6,7 @@ export declare abstract class Namespace {
     getMiddleware(): Middleware[];
     constructor();
     start(instance: Floodway): void;
+    getRootUrl(): string;
     getActions(): {
         [path: string]: IAction;
     };

@@ -5,18 +5,30 @@ var __extends = (this && this.__extends) || function (d, b) {
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
 };
 var __entry_1 = require("../__entry");
+var HttpMethod_1 = require("./HttpMethod");
 var DownloadAction = (function (_super) {
     __extends(DownloadAction, _super);
     function DownloadAction() {
         _super.apply(this, arguments);
     }
-    DownloadAction.prototype.getMetaData = function () {
+    DownloadAction.isDownloadAction = function (input) {
+        return input.isDAction !== undefined;
+    };
+    DownloadAction.prototype.getHttpMethods = function () {
+        return [HttpMethod_1.HttpMethod.GET];
+    };
+    DownloadAction.prototype.isDAction = function () {
+        return true;
+    };
+    DownloadAction.prototype.getWebMetaData = function () {
         return {
             name: this.getName(),
             supportsUpdates: false,
             description: "Obtain a download token for a file",
             params: this.getParams(),
-            result: this.getResult(),
+            result: new __entry_1.ObjectSchema("FilePath").children({
+                path: new __entry_1.StringSchema()
+            }),
             middleware: this.getMiddleware(),
             errors: this.getErrors()
         };
@@ -27,41 +39,6 @@ var DownloadAction = (function (_super) {
     DownloadAction.prototype.getErrors = function () {
         return [];
     };
-    DownloadAction.prototype.getResult = function () {
-        return new __entry_1.ObjectSchema().children({
-            downloadToken: new __entry_1.StringSchema()
-        });
-    };
-    DownloadAction.prototype.getExpireTime = function () {
-        return null;
-    };
-    DownloadAction.prototype.run = function () {
-        var _this = this;
-        var deleteAfterDownload = this.getExpireTime == null;
-        var downloadToken = __entry_1.Utils.generateUUID();
-        this.getFilePath(function (err, path) {
-            console.log(path);
-            if (err != null) {
-                _this.fail("internalError", err);
-            }
-            else {
-                _this.redis.hmset("fileDownload:" + downloadToken, {
-                    namespace: _this.getCallbackInfo().namespace,
-                    action: _this.getCallbackInfo().action,
-                    deleteAfterDownload: deleteAfterDownload,
-                    params: JSON.stringify(_this.getCallbackInfo().params),
-                    path: path
-                }, function (err, res) {
-                    if (err != null) {
-                        return _this.fail("internalError", err);
-                    }
-                    _this.res({
-                        downloadToken: downloadToken
-                    });
-                });
-            }
-        });
-    };
     return DownloadAction;
-}(__entry_1.Action));
+}(__entry_1.WebAction));
 exports.DownloadAction = DownloadAction;

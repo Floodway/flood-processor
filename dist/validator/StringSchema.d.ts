@@ -19,7 +19,7 @@ export declare class StringSchema extends Type {
     };
     validate(data: any, callback: {
         (err: any, res: string): void;
-    }): void;
+    }, path?: string): void;
     oneOf(input: string[]): this;
     length(length: number): StringSchema;
     minLength(minLength: number): StringSchema;

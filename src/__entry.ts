@@ -3,21 +3,19 @@ export { Middleware } from "./framework/Middleware";
 export { Action, IAction, ActionParams, ActionMeta } from "./framework/Action";
 export { Connector, ConnectorMeta } from "./framework/Connector";
 export { Err } from "./framework/Err";
-export { WebConnector, WebAction, HttpMethod, WebConfig, BodyMode } from "./framework/WebConnector";
+export { WebAction } from "./framework/WebAction";
+export { WebConnector } from "./framework/WebConnector";
+export { BodyMode } from "./framework/BodyMode";
+export { HttpMethod } from "./framework/HttpMethod";
 export { WebSocketConnector } from "./framework/WebSocketConnector";
 export { Floodway } from "./framework/Floodway";
 export { Namespace } from "./framework/Namespace";
 export { Utils } from "./utils/utils";
 export { Log } from "./utils/log";
 export { Cookie } from "./utils/Cookie";
-export { UploadAction} from "./framework/UploadAction";
-export { FileCallback } from "./framework/FileCallback";
 export { AsyncGroup } from "./utils/AsyncGroup";
 export { FileSchema} from "./framework/FileSchema";
 export { DownloadAction } from "./framework/DownloadAction";
-export { UploadRedisSchema } from "./framework/UploadRedisSchema";
-export { DownloadRedisSchema } from "./framework/DownloadRedisSchema";
-
 // Validator
 export { Type } from "./validator/Type";
 export { ObjectSchema, ObjectMode } from "./validator/ObjectSchema";

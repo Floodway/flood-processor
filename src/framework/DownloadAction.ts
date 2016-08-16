@@ -1,17 +1,32 @@
-import {WebAction,Action,ObjectSchema,StringSchema,Type,Utils,FileCallback,Middleware,WebConfig} from "../__entry";
-export abstract class DownloadAction extends Action implements WebAction{
+import {WebAction,Action,ObjectSchema,StringSchema,Type,Utils,Middleware} from "../__entry";
+import {HttpMethod} from "./HttpMethod";
+export abstract class DownloadAction extends WebAction{
 
-
-    abstract getWebConfig(): WebConfig;
     abstract getName(): string;
 
-    getMetaData(){
+
+    static isDownloadAction(input: any): input is DownloadAction{
+        return input.isDAction !== undefined
+    }
+
+
+    getHttpMethods(){
+        return [HttpMethod.GET]
+    }
+
+    isDAction(){
+        return true;
+    }
+
+    getWebMetaData(){
         return {
             name: this.getName(),
             supportsUpdates: false,
             description: "Obtain a download token for a file",
             params: this.getParams(),
-            result: this.getResult(),
+            result: new ObjectSchema("FilePath").children({
+                path: new StringSchema()
+            }),
             middleware: this.getMiddleware(),
             errors: this.getErrors()
         }
@@ -21,59 +36,15 @@ export abstract class DownloadAction extends Action implements WebAction{
         return [];
     }
 
+    abstract getParams(): Type;
+
+
     getErrors(){
         return []
     }
 
-    abstract getFilePath(callback: {(err:any,path:string)});
-    abstract getParams(): Type;
 
-
-    getResult(){
-        return new ObjectSchema().children({
-            downloadToken: new StringSchema()
-        })
-    }
-
-    getExpireTime(): Number{
-        return null;
-    }
-
-    abstract getCallbackInfo(): FileCallback;
-
-    run(){
-
-        let deleteAfterDownload = this.getExpireTime == null;
-
-        let downloadToken  = Utils.generateUUID();
-
-
-
-        this.getFilePath((err:any,path: string) => {
-            console.log(path);
-            if(err != null){
-                this.fail("internalError",err);
-            }else{
-                this.redis.hmset("fileDownload:"+downloadToken,{
-                    namespace: this.getCallbackInfo().namespace,
-                    action: this.getCallbackInfo().action,
-                    deleteAfterDownload,
-                    params: JSON.stringify(this.getCallbackInfo().params),
-                    path: path
-                },(err,res) => {
-                    if(err != null){ return this.fail("internalError",err) }
-                    this.res({
-                        downloadToken
-                    })
-                });
-            }
-
-        });
-
-
-
-
-    }
+    abstract run();
 
 
 

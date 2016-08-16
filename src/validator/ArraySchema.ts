@@ -1,5 +1,6 @@
 import {Type} from "./Type";
 import * as _ from "lodash";
+import *  as chalk from "chalk";
 import {AsyncGroup, AsyncGroupCallback} from "../utils/AsyncGroup";
 export class ArraySchema extends Type{
 
@@ -42,52 +43,40 @@ export class ArraySchema extends Type{
         return this;
     }
 
-    build(path: String = "root"): ArraySchema{
-        if(this.modeS == "uniform"){
-            this.childrenT.build(path+".child");
-        }else{
-            let i = 0;
-            for(let child of this.childrenLT){
-                child.build(path+"["+i+"]");
-                i++
-            }
-        }
-        return this;
-    }
 
-    validate(input: any[],callback: { (err: any,res: string): void }){
+    validate(input: any[],callback: { (err: any,res: string): void },path="root"){
         let data: any[];
         if(_.isArray(input)){
             data  = input;
         }
-        let group: AsyncGroup = new AsyncGroup((err: any,result: any) =>{
-            if(err != null){
-                err.path = this.path+"["+err.index+"]";
-                delete err.index;
-            }
-            callback(err,result);
-        });
+
+        if(path == "root"){
+            console.log(chalk.red("Warning: ArraySchema at Root. Please use an Object to ensure proper conversion to Java Classes."));
+        }
+
+        let group: AsyncGroup = new AsyncGroup(callback);
         
         switch(this.modeS){
             case "uniform":
                 // All children use the same validation Type
-                for(let child of data){
+                data.map((item,index) => {
                     group.add((done: AsyncGroupCallback) =>{
-                        this.childrenT.validate(child,done);
+                        this.childrenT.validate(item,done,path+"["+index+"]");
                     });
-                }
+
+                });
                 break;
             case "unique":
                 if(data.length <= this.childrenLT.length){
                     for(let index in data){
                         group.add((done: AsyncGroupCallback) =>{
-                          this.childrenLT[index].validate(data[index],done);
+                          this.childrenLT[index].validate(data[index],done,path+"["+index+"]");
                         });
                     }
                 }else{
                     callback({
-                        error: "arrayMismatch",
-                        path: this.path
+                        error: "arrayLengthMismatch",
+                        path: path
                     },null)
                 }
         }

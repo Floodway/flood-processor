@@ -6,7 +6,7 @@ export declare class BooleanSchema extends Type {
     };
     validate(data: any, callback: {
         (err: any, res: boolean): void;
-    }): void;
+    }, path?: string): void;
     hasChildren(): boolean;
     inverse(value?: boolean): BooleanSchema;
 }

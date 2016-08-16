@@ -9,7 +9,6 @@
         "./src/cli/main-generate-namespace",
         "./src/cli/main-dev.ts",
         "./src/cli/main-init.ts",
-        "./src/namespaces/Test/namespace",
         "./src/example/example.ts",
         "./typings/index.d.ts"
     ],

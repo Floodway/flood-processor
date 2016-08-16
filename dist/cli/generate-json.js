@@ -29,13 +29,12 @@ exports.default = function (main, packageJson, writeToFile) {
                         meta = action.getMetaData();
                     }
                     if (isWebAction(action)) {
-                        var webConfig = action.getWebConfig();
                         var res_1 = {
                             methods: [],
-                            path: webConfig.url,
-                            bodyMode: webConfig.bodyMode == __entry_1.BodyMode.JSON ? "JSON" : "UrlEncoded"
+                            path: action.getUrl(),
+                            bodyMode: action.getBodyMode() == __entry_1.BodyMode.JSON ? "JSON" : "UrlEncoded"
                         };
-                        webConfig.methods.map(function (method) {
+                        action.getHttpMethods().map(function (method) {
                             switch (method) {
                                 case __entry_1.HttpMethod.DELETE:
                                     res_1.methods.push("DELETE");

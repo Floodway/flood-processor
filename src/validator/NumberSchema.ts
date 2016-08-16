@@ -30,14 +30,14 @@ export class NumberSchema extends Type{
         }
     }
 
-    validate(data: any,callback: { (err: any,res: string): void }){
+    validate(data: any,callback: { (err: any,res: string): void },path="root"){
         let item;
         try{
             item = Number(data);
         }catch(e){
             callback({
                 error: "notNumber",
-                path: this.path
+                path: path
             },null);
         }
 
@@ -59,7 +59,8 @@ export class NumberSchema extends Type{
                 if(this.blackListN.indexOf(item) != -1){
                     return callback({
                         error: "invalidValue",
-                        disallowedItems: this.blackListN
+                        disallowedItems: this.blackListN,
+                        path
                     },null);
                 }
             }
@@ -68,7 +69,8 @@ export class NumberSchema extends Type{
                 if(this.whiteListN.indexOf(item) == -1){
                     return callback({
                         error: "invalidValue",
-                        allowedItems: this.whiteListN
+                        allowedItems: this.whiteListN,
+                        path
                     },null);
                 }
             }
@@ -77,7 +79,8 @@ export class NumberSchema extends Type{
                 if(item < this.minN){
                     return callback({
                         error: "tooSmallValue",
-                        min: this.minN
+                        min: this.minN,
+                        path
                     },null);
                 }
 
@@ -87,7 +90,8 @@ export class NumberSchema extends Type{
                 if(item > this.maxN){
                     return callback({
                         error: "tooBigValue",
-                        max: this.maxN
+                        max: this.maxN,
+                        path
                     },null);
                 }
             }

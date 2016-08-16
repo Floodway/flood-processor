@@ -17,10 +17,15 @@ export class ObjectSchema extends Type{
     private className: string;
     private modeS: ObjectMode;
 
-    constructor(){
+    constructor(className: string){
         super();
         this.childrenT = {};
-        this.modeS = ObjectMode.SHORTEN;
+        this.className = this.makeClassName(className);
+        this.modeS = ObjectMode.LOOSE;
+    }
+
+    makeClassName(input: string){
+        return input.charAt(0).toUpperCase()+input.slice(1);
     }
 
     modeToString(mode: ObjectMode){
@@ -35,6 +40,10 @@ export class ObjectSchema extends Type{
                 return "STRICT";
 
         }
+    }
+
+    static isObjectSchema(input: any): input is ObjectSchema{
+        return input.getClassName !== undefined;
     }
 
     toJSON(): any{
@@ -76,25 +85,7 @@ export class ObjectSchema extends Type{
         return this.childrenT;
     }
 
-    build(path: string){
-        this.path = path;
-        if(this.getClassName() == null && path.indexOf(".") == -1){
-            this.setClassName(path);
-        }
-        Object.keys(this.childrenT).map((key) => {
-            this.childrenT[key].build(path+"["+key+"]");
-        });
-        return this;
-    }
 
-
-
-
-
-    setClassName(className: string){
-        this.className = className;
-        return this;
-    }
 
     getClassName(){
         return this.className;
@@ -110,22 +101,24 @@ export class ObjectSchema extends Type{
 
 
 
-    validate(item: any,callback: { (err: Object, res: Object): void }){
+    validate(item: any,callback: { (err: Object, res: Object): void },path="root"){
         let group : AsyncGroup;
 
         let newValue = {};
 
         if(item == null){
-            callback({error: "notPresent", path: this.path},null)
+            return callback({error: "notPresent", path: path},null)
         }
 
         if(this.modeS == ObjectMode.STRICT){
             let valid = true;
+            let missingKey;
             // Make sure the keys are the same
             for(let key of Object.keys(this.childrenT)){
 
                 if(!item.hasOwnProperty(key)){
                     valid = false;
+                    missingKey = key;
                     break;
                 }
 
@@ -139,7 +132,9 @@ export class ObjectSchema extends Type{
             if(!valid){
                 return callback({
                     error: "invalidKeys",
-                    description: "Not all or too many keys supplied."
+                    description: "Not all or too many keys supplied.",
+                    path,
+                    missingKey
                 },null)
             }
 
@@ -194,7 +189,7 @@ export class ObjectSchema extends Type{
 
                     }
 
-                })
+                },path+"."+key)
 
             });
 

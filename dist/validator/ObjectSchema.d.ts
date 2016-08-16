@@ -9,8 +9,10 @@ export declare class ObjectSchema extends Type {
     private childrenT;
     private className;
     private modeS;
-    constructor();
+    constructor(className: string);
+    makeClassName(input: string): string;
     modeToString(mode: ObjectMode): string;
+    static isObjectSchema(input: any): input is ObjectSchema;
     toJSON(): any;
     hasChildren(): boolean;
     children(children: {
@@ -20,11 +22,9 @@ export declare class ObjectSchema extends Type {
     getChildren(): {
         [path: string]: Type;
     };
-    build(path: string): this;
-    setClassName(className: string): this;
     getClassName(): string;
     mode(mode: ObjectMode): this;
     validate(item: any, callback: {
         (err: Object, res: Object): void;
-    }): void;
+    }, path?: string): void;
 }

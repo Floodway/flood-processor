@@ -4,43 +4,22 @@ import * as express from "express";
 import * as bodyParser from "body-parser";
 import * as cookieParser from "cookie-parser";
 import {Server,createServer} from "http";
-import {FileEndPoints} from "./FileEndPoints";
+import *  as fs from "fs";
+import *  as path from "path";
+import {DownloadAction} from "./DownloadAction";
+import * as multer from "multer";
+import {WebAction} from "./WebAction";
+import {HttpMethod} from "./HttpMethod";
+import {BodyMode} from "./BodyMode";
+
+let upload = multer({ dest : path.join(process.cwd(),"./uploads")});
 
 export interface WebConnectorConfig {
     port:number;
 
 }
 
-export enum BodyMode{
-    JSON,
-    UrlEncoded
 
-}
-
-export enum HttpMethod{
-    GET,
-    POST,
-    PATCH,
-    DELETE,
-    HEAD
-}
-
-export interface WebConfig {
-
-    methods:HttpMethod[];
-    url:string;
-    bodyMode?:BodyMode;
-
-
-}
-
-export interface WebAction {
-    getWebConfig():WebConfig
-}
-
-function isWebAction(action:any):action is WebAction {
-    return action.getWebConfig !== undefined;
-}
 
 export class WebConnector extends Connector {
 
@@ -48,7 +27,6 @@ export class WebConnector extends Connector {
     private app;
     private floodway: Floodway;
     private server: Server;
-    private fileEndPoints: FileEndPoints;
 
     constructor(config: WebConnectorConfig) {
         super();
@@ -65,7 +43,7 @@ export class WebConnector extends Connector {
         this.app.use(cookieParser());
 
         this.server = createServer(this.app);
-        this.fileEndPoints = new FileEndPoints();
+        //this.fileEndPoints = new FileEndPoints();
     }
 
     getServer(){
@@ -94,7 +72,10 @@ export class WebConnector extends Connector {
         let action: Action = new actionI();
 
 
-        let params = _.extend(req.body,req.params,req.query);
+
+        let params = _.extend(req.body,req.params,req.query,{ file: req.file });
+
+        console.log(req.file);
 
         let ssid: string;
 
@@ -112,7 +93,7 @@ export class WebConnector extends Connector {
 
         }
 
-        if(isWebAction(action)){
+        if(WebAction.isWebAction(action)){
             action.populate({
 
                 namespace: namespace.getName(),
@@ -120,7 +101,19 @@ export class WebConnector extends Connector {
                 requestId: "web:"+Utils.generateUUID(),
                 sessionId: ssid,
                 sendData: (data: any) => {
-                    res.json(data);
+
+                    if(DownloadAction.isDownloadAction(action)){
+                        console.log(data.params.path);
+                        if(data.messageType == "response" && fs.existsSync(data.params.path)){
+                            res.sendFile(data.params.path);
+                        }else if(data.messageType == "error"){
+                            res.status(500).end(JSON.stringify(data));
+                        }else{
+                            res.status(404).end("Error 404. Not found");
+                        }
+                    }else{
+                        res.json(data);
+                    }
 
                 }
             },this.floodway);
@@ -147,92 +140,64 @@ export class WebConnector extends Connector {
         for (let name of Object.keys(namespaces)) {
 
             let namespace = namespaces[name];
+            let nsRouter  = express.Router();
 
+            // Register all actions
             for (let actionName of Object.keys(namespace.getActions())) {
-
+                // Retrieve action and actionI
                 let actionI = namespace.getAction(actionName);
-
-                let actionIC : Action = new actionI();
-
                 let action:Action | WebAction = new actionI();
+                // Check if it's a webAction
+                if (WebAction.isWebAction(action)) {
+                    let router = action.useNamespaceRouter() ? nsRouter : this.app;
+                    for (let method of action.getHttpMethods()) {
 
+                        let url = action.getUrl();
+                        let bodyMode = action.getBodyMode();
+                        let useMulter = action.allowUploads();
 
-
-                if (isWebAction(action) && !actionIC.getMetaData().supportsUpdates) {
-
-
-                    let config:WebConfig = action.getWebConfig();
-
-                    for (let method of config.methods) {
-
-
-                        switch (method) {
-
-                            case HttpMethod.GET:
-
-
-                                this.app.get(
-                                    config.url,
-                                    config.bodyMode == BodyMode.JSON ? bodyParser.json() : bodyParser.urlencoded({ extended: true}),
-                                    this.handleRequest.bind(this,namespace,actionI)
-                                );
-                                break;
-
-                            case HttpMethod.POST:
-
-                                this.app.post(
-                                    config.url,
-                                    config.bodyMode == BodyMode.JSON ? bodyParser.json() : bodyParser.urlencoded({ extended: true}),
-                                    this.handleRequest.bind(this,namespace,actionI)
-                                );
-
-                                break;
-
-                            case HttpMethod.HEAD:
-
-                                this.app.head(
-                                    config.url,
-                                    config.bodyMode == BodyMode.JSON ? bodyParser.json() : bodyParser.urlencoded({ extended: true}),
-                                    this.handleRequest.bind(this,namespace,actionI)
-                                );
-
-                                break;
-
-                            case HttpMethod.PATCH:
-
-                                this.app.patch(
-                                    config.url,
-                                    config.bodyMode == BodyMode.JSON ? bodyParser.json() : bodyParser.urlencoded({ extended: true}),
-                                    this.handleRequest.bind(this,namespace,actionI)
-                                );
-
-                                break;
-
-                            case HttpMethod.DELETE:
-
-                                this.app.delete(
-                                    config.url,
-                                    config.bodyMode == BodyMode.JSON ? bodyParser.json() : bodyParser.urlencoded({ extended: true}),
-                                    this.handleRequest.bind(this,namespace,actionI)
-                                );
-
-                                break;
-
-
+                        if(bodyMode == BodyMode.JSON && useMulter){
+                            throw new Error("Can not combine JSON Mode with uploads");
                         }
 
+                        let args: any[] = [url];
+
+                        if(useMulter){
+                            args.push(upload.single("file"));
+                            console.log("Applied Multer");
+                        }else{
+                            if(bodyMode == BodyMode.JSON){
+                                args.push(bodyParser.json())
+                            }else{
+                                args.push(bodyParser.urlencoded({ extended: false}))
+                            }
+                        }
+
+                        args.push(this.handleRequest.bind(this,namespace,actionI));
+
+                        switch (method) {
+                            case HttpMethod.GET:
+                                router.get.apply(router,args);
+                                break;
+                            case HttpMethod.POST:
+                                router.post.apply(router,args);
+                                break;
+                            case HttpMethod.HEAD:
+                                router.head.apply(router,args);
+                                break;
+                            case HttpMethod.PATCH:
+                                router.patch.apply(router,args);
+                                break;
+                            case HttpMethod.DELETE:
+                                router.delete.apply(router,args);
+                                break;
+                        }
                     }
-
-
                 }
-
-
             }
+            this.app.use(namespace.getRootUrl(),nsRouter);
 
         }
-
-        this.fileEndPoints.register(this);
         this.server.listen(this.config.port);
     }
-
 }

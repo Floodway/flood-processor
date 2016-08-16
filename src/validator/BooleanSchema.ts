@@ -10,7 +10,7 @@ export class BooleanSchema extends Type{
         }
     }
 
-    validate(data: any,callback: { (err: any,res: boolean): void }){
+    validate(data: any,callback: { (err: any,res: boolean): void },path="root"){
         let item = data == true;
 
         if(this.inverseB) {

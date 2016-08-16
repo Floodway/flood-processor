@@ -28,14 +28,14 @@ export class StringSchema extends Type{
       }
   }
 
-  validate(data: any,callback: { (err: any,res: string): void }){
+  validate(data: any,callback: { (err: any,res: string): void },path="root"){
     let item: string;
     if(_.isString(data)){
       item = data;
     }else{
       return callback({
         error: "notString",
-        path: this.path
+        path
       },null);
     }
 
@@ -47,7 +47,7 @@ export class StringSchema extends Type{
           error: "invalidLength",
           value: item,
           neededLength: this.lengthN,
-          path: this.path
+          path: path
         },null);
       }
     }
@@ -56,7 +56,7 @@ export class StringSchema extends Type{
       if(this.minLengthN > item.length){
         return callback({
           error: "tooShort",
-          path: this.path
+          path: path
         },null);
       }
     }
@@ -65,7 +65,7 @@ export class StringSchema extends Type{
       if(this.maxLengthN < item.length){
         return callback({
           error: "tooLong",
-          path: this.path
+          path: path
         },null);
       }
     }
@@ -78,7 +78,7 @@ export class StringSchema extends Type{
 
     if(this.oneOfS != null){
       if(this.oneOfS.indexOf(item) == -1){
-        return callback({ error: "notFound", allowedItems: this.oneOfS, path: this.path },null);
+        return callback({ error: "invalidValue", allowedItems: this.oneOfS, path: path },null);
       }
     }
 

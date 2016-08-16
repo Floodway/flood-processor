@@ -6,6 +6,7 @@ var __extends = (this && this.__extends) || function (d, b) {
 };
 var _ = require("lodash");
 var events_1 = require("events");
+var ObjectSchema_1 = require("../validator/ObjectSchema");
 var defaultErrors = [
     {
         errorCode: "internalError",
@@ -29,19 +30,21 @@ var Action = (function (_super) {
         return input.charAt(0).toUpperCase() + input.slice(1);
     };
     Action.prototype.getParamsName = function () {
-        if (!this.getMetaData().params.isBuilt()) {
-            return this.makeClassName(this.getMetaData().name) + "Params";
+        var params = this.getMetaData().params;
+        if (ObjectSchema_1.ObjectSchema.isObjectSchema(params)) {
+            params.getClassName();
         }
         else {
-            return this.getMetaData().params.path;
+            return this.makeClassName(this.getMetaData().name) + "Params";
         }
     };
     Action.prototype.getResultName = function () {
-        if (!this.getMetaData().result.isBuilt()) {
-            return this.makeClassName(this.getMetaData().name) + "Result";
+        var result = this.getMetaData().result;
+        if (ObjectSchema_1.ObjectSchema.isObjectSchema(result)) {
+            result.getClassName();
         }
         else {
-            return this.getMetaData().result.path;
+            return this.makeClassName(this.getMetaData().name) + "Result";
         }
     };
     Action.prototype.populate = function (params, floodway) {
@@ -81,7 +84,7 @@ var Action = (function (_super) {
                 _this.params = result;
                 _this.run();
             }
-        });
+        }, "root(ActionParams)");
     };
     Action.prototype.nextMiddleware = function () {
         this.processedMiddleware++;
@@ -112,7 +115,7 @@ var Action = (function (_super) {
             if (!_this.getMetaData().supportsUpdates || final) {
                 _this.emit("done");
             }
-        });
+        }, "root(ActionResult)");
     };
     Action.prototype.fail = function (errorCode, additionalData) {
         var possibleErrors = this.getPossibleErrors();

@@ -5,6 +5,7 @@
   "main": "./dist/__entry.js",
   "floodMain": "./dist/example/example.js",
   "typings": "./dist/__entry",
+  "javaPackage": "se.kth.clickr",
   "repository": {
     "type": "git",
     "url": "https://github.com/Floodway/flood-processor.git"
