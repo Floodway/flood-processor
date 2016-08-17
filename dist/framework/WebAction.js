@@ -30,6 +30,7 @@ var WebAction = (function (_super) {
             name: meta.name,
             description: meta.description,
             params: meta.params,
+            exposeParams: meta.exposeParams,
             result: meta.result,
             errors: meta.errors,
             middleware: meta.middleware

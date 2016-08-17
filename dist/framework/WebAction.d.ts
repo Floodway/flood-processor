@@ -9,6 +9,7 @@ export interface WebMeta {
     description: string;
     params: Type;
     result: Type;
+    exposeParams?: Type;
     errors: Err[];
     middleware: Middleware[];
 }
@@ -25,6 +26,7 @@ export declare abstract class WebAction extends Action {
         name: string;
         description: string;
         params: Type;
+        exposeParams: Type;
         result: Type;
         errors: Err[];
         middleware: Middleware[];

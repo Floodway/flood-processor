@@ -26,6 +26,7 @@ var DownloadAction = (function (_super) {
             supportsUpdates: false,
             description: "Obtain a download token for a file",
             params: this.getParams(),
+            exposeParams: this.getExposeParams(),
             result: new __entry_1.ObjectSchema("FilePath").children({
                 path: new __entry_1.StringSchema()
             }),
@@ -35,6 +36,9 @@ var DownloadAction = (function (_super) {
     };
     DownloadAction.prototype.getMiddleware = function () {
         return [];
+    };
+    DownloadAction.prototype.getExposeParams = function () {
+        return null;
     };
     DownloadAction.prototype.getErrors = function () {
         return [];

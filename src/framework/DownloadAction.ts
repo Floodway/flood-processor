@@ -24,6 +24,7 @@ export abstract class DownloadAction extends WebAction{
             supportsUpdates: false,
             description: "Obtain a download token for a file",
             params: this.getParams(),
+            exposeParams: this.getExposeParams(),
             result: new ObjectSchema("FilePath").children({
                 path: new StringSchema()
             }),
@@ -36,7 +37,12 @@ export abstract class DownloadAction extends WebAction{
         return [];
     }
 
+
     abstract getParams(): Type;
+
+    getExposeParams(): Type{
+        return null;
+    }
 
 
     getErrors(){

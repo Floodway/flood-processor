@@ -29,7 +29,7 @@ class TestAction extends WebAction{
 
     getWebMetaData(){
         return {
-            params: new ObjectSchema("TestParamms").children({
+            params: new ObjectSchema("TestParams").children({
                 items: new ArraySchema().child(new ObjectSchema("TestChild").children({
                     meta: new ObjectSchema("meta").children({
                         foo: new StringSchema(),
@@ -94,8 +94,11 @@ class ExampleUpload extends WebAction{
             name: "upload",
             description: "Uploads a file",
             result: new ObjectSchema("NoRes").children({}),
-            params: new ObjectSchema("ExampleUploadParams").children({
+            params: new ObjectSchema("ExampleUploadParamsProcessed").children({
                 file: FileSchema
+            }),
+            exposeParams: new ObjectSchema("ExampleUploadParams").children({
+                file: new StringSchema()
             }),
             errors: [],
             middleware: []

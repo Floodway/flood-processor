@@ -9,6 +9,7 @@ export interface WebMeta{
     description: string;
     params: Type;
     result: Type;
+    exposeParams?: Type;
     errors: Err[];
     middleware: Middleware[];
 }
@@ -44,6 +45,7 @@ export abstract class WebAction extends Action{
             name: meta.name,
             description: meta.description,
             params: meta.params,
+            exposeParams: meta.exposeParams,
             result: meta.result,
             errors: meta.errors,
             middleware: meta.middleware

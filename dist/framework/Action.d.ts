@@ -15,6 +15,7 @@ export interface ActionMeta {
     name: string;
     description: string;
     params: Type;
+    exposeParams?: Type;
     result: Type;
     middleware: Middleware[];
     errors: Err[];

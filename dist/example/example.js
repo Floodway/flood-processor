@@ -30,7 +30,7 @@ var TestAction = (function (_super) {
     };
     TestAction.prototype.getWebMetaData = function () {
         return {
-            params: new __entry_1.ObjectSchema("TestParamms").children({
+            params: new __entry_1.ObjectSchema("TestParams").children({
                 items: new ArraySchema_1.ArraySchema().child(new __entry_1.ObjectSchema("TestChild").children({
                     meta: new __entry_1.ObjectSchema("meta").children({
                         foo: new StringSchema_1.StringSchema(),
@@ -92,8 +92,11 @@ var ExampleUpload = (function (_super) {
             name: "upload",
             description: "Uploads a file",
             result: new __entry_1.ObjectSchema("NoRes").children({}),
-            params: new __entry_1.ObjectSchema("ExampleUploadParams").children({
+            params: new __entry_1.ObjectSchema("ExampleUploadParamsProcessed").children({
                 file: __entry_1.FileSchema
+            }),
+            exposeParams: new __entry_1.ObjectSchema("ExampleUploadParams").children({
+                file: new StringSchema_1.StringSchema()
             }),
             errors: [],
             middleware: []

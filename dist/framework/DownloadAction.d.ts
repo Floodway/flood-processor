@@ -10,12 +10,14 @@ export declare abstract class DownloadAction extends WebAction {
         supportsUpdates: boolean;
         description: string;
         params: Type;
+        exposeParams: Type;
         result: ObjectSchema;
         middleware: Middleware[];
         errors: any[];
     };
     getMiddleware(): Middleware[];
     abstract getParams(): Type;
+    getExposeParams(): Type;
     getErrors(): any[];
     abstract run(): any;
 }

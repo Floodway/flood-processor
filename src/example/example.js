@@ -31,7 +31,7 @@ var TestAction = (function (_super) {
     };
     TestAction.prototype.getMetaData = function () {
         return {
-            params: new __entry_1.ObjectSchema("TestParamms").children({
+            params: new __entry_1.ObjectSchema("TestParams").children({
                 items: new ArraySchema_1.ArraySchema().child(new __entry_1.ObjectSchema("TestChild").children({
                     meta: new __entry_1.ObjectSchema("meta").children({
                         foo: new StringSchema_1.StringSchema(),
