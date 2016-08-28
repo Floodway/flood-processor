@@ -9,6 +9,7 @@ export declare class NumberSchema extends Type {
     private blackListN;
     private whiteListN;
     hasChildren(): boolean;
+    static isNumberSchema(input: Type): input is NumberSchema;
     toJSON(): {
         type: string;
         allowDecimals: boolean;

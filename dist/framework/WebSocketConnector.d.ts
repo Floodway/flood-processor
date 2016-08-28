@@ -4,7 +4,7 @@ import * as Socket from "ws";
 import { Server as WebServer, ServerRequest } from "http";
 export interface WebSocketConnectorConfig {
     server: WebServer;
-    port: number;
+    port?: number;
     allowedOrigins: string[];
 }
 export declare class WebSocketConnection {

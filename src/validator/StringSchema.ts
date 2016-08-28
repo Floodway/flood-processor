@@ -28,6 +28,10 @@ export class StringSchema extends Type{
       }
   }
 
+  static isStringSchema(input: Type): input is StringSchema{
+    return input.toJSON().type == "array";
+  }
+
   validate(data: any,callback: { (err: any,res: string): void },path="root"){
     let item: string;
     if(_.isString(data)){

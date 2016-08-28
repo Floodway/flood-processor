@@ -16,7 +16,7 @@ var Namespace = (function () {
     Namespace.prototype.hasAction = function (name) { return this.actions[name] != null; };
     Namespace.prototype.action = function (action) {
         var temp = new action();
-        this.actions[temp.getMetaData().name] = action;
+        this.actions[temp.getName()] = action;
     };
     return Namespace;
 }());

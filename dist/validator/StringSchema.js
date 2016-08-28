@@ -25,6 +25,9 @@ var StringSchema = (function (_super) {
             lowercase: this.toLowerCaseB
         };
     };
+    StringSchema.isStringSchema = function (input) {
+        return input.toJSON().type == "array";
+    };
     StringSchema.prototype.validate = function (data, callback, path) {
         if (path === void 0) { path = "root"; }
         var item;

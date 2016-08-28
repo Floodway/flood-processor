@@ -6,6 +6,12 @@ var __extends = (this && this.__extends) || function (d, b) {
 };
 var __entry_1 = require("../__entry");
 var HttpMethod_1 = require("./HttpMethod");
+var DownloadResult = (function () {
+    function DownloadResult() {
+    }
+    return DownloadResult;
+}());
+exports.DownloadResult = DownloadResult;
 var DownloadAction = (function (_super) {
     __extends(DownloadAction, _super);
     function DownloadAction() {
@@ -20,29 +26,6 @@ var DownloadAction = (function (_super) {
     DownloadAction.prototype.isDAction = function () {
         return true;
     };
-    DownloadAction.prototype.getWebMetaData = function () {
-        return {
-            name: this.getName(),
-            supportsUpdates: false,
-            description: "Obtain a download token for a file",
-            params: this.getParams(),
-            exposeParams: this.getExposeParams(),
-            result: new __entry_1.ObjectSchema("FilePath").children({
-                path: new __entry_1.StringSchema()
-            }),
-            middleware: this.getMiddleware(),
-            errors: this.getErrors()
-        };
-    };
-    DownloadAction.prototype.getMiddleware = function () {
-        return [];
-    };
-    DownloadAction.prototype.getExposeParams = function () {
-        return null;
-    };
-    DownloadAction.prototype.getErrors = function () {
-        return [];
-    };
     return DownloadAction;
-}(__entry_1.WebAction));
+}(__entry_1.Action));
 exports.DownloadAction = DownloadAction;

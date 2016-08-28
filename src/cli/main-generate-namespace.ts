@@ -80,6 +80,21 @@ export default class ${makeClassName(namespaceName)} extends Namespace{
 }
 `;
         fs.writeFileSync(path.join(newDir,"namespace.ts"),file);
+
+
+        let index= fs.readFileSync(path.join(rootDir,"./index.ts")).toString();
+
+
+        index = index.replace("//INSERT",`flood.registerNamespace(${makeClassName(namespaceName)}); \n //INSERT`);
+
+        let split = index.split("\n");
+
+        split.unshift(`import ${makeClassName(namespaceName)} from "./namespaces/${namespaceName}/namespace";`);
+
+
+
+        fs.writeFileSync(path.join(rootDir,"./index.ts"),split.join("\n"));
+
     }
 
 });

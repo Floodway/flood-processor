@@ -16,6 +16,10 @@ export class MapSchema extends Type{
         }
     }
 
+    static isMapSchema(input: Type): input is MapSchema{
+        return input.toJSON().type == "mapSchema";
+    }
+
 
     hasChildren(): boolean{
         return true;

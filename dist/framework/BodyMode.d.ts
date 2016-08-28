@@ -1,4 +1,5 @@
 export declare enum BodyMode {
     JSON = 0,
     UrlEncoded = 1,
+    Upload = 2,
 }

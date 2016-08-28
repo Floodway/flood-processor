@@ -1,20 +1,63 @@
 #!/usr/bin/env node
 import *  as fs from "fs";
 import * as path from "path";
+import * as chalk from "chalk";
+import *  as Utils from "./utils";
 
 import {BodyMode, HttpMethod, WebAction, Action} from "../__entry";
 
-function isWebAction(action:any):action is WebAction {
-    return action.getWebConfig !== undefined;
+
+function findRoot(){
+    let currentPath = process.cwd();
+    while(true){
+        if(fs.existsSync(path.join(currentPath,"./package.json"))){
+            return currentPath;
+        }else{
+            currentPath = path.join(currentPath,"../");
+        }
+    }
+};
+
+
+let rootDir = findRoot();
+
+console.log(chalk.red("Generating the documentation only works if the Project follows the Flood design specs!"));
+
+// Load main file to retrieve information about connectors
+
+
+let main = require(require(path.join(rootDir,"./package.json")["main"]));
+
+let result;
+
+if(main != null){
+
+    result = {
+        version: packageJson.version,
+        connectors: main.getConnectors().map((item) => { return item.getMeta() }),
+    };
+
+    // Scan for namespaces
+
+    let namespaces = Utils.getDirectories(path.join(rootDir,"./src/namespaces"));
+
+    console.log(chalk.green(`Found ${namespaces.length} namespaces!`));
+
+    for(let namespaceDir of namespaces){
+
+
+
+    }
+
+
 }
 
-function isAction(action: any): action is Action{
-    return action.getMetaData !== undefined;
-}
+
 
 export default (main,packageJson,writeToFile=false) => {
     if(main != null){
         if(main.getNamespaces != null){
+
             let namespaces = main.getNamespaces();
 
 
@@ -31,80 +74,12 @@ export default (main,packageJson,writeToFile=false) => {
 
 
                     let actionI  = namespace.getActions()[key];
-                    let action: Action | WebAction = new actionI();
+                    let action: Action<any,any> = new actionI();
 
-                    let meta;
-                    let webStuff;
+                    action.setNamespace(namespace);
+                    actions.push(action.toJson());
 
-                    if(isAction(action)){
-                        meta = action.getMetaData();
-                    }
-
-                    if(isWebAction(action)){
-
-
-                        let res = {
-                            methods: [],
-                            path: action.getUrl(),
-                            bodyMode: action.getBodyMode() == BodyMode.JSON ? "JSON" : "UrlEncoded"
-                        };
-
-                        action.getHttpMethods().map((method) => {
-                            switch(method){
-                                case HttpMethod.DELETE:
-                                    res.methods.push("DELETE");
-                                    break;
-                                case HttpMethod.GET:
-                                    res.methods.push("GET");
-                                    break;
-                                case HttpMethod.PATCH:
-                                    res.methods.push("PATH");
-                                    break;
-                                case HttpMethod.POST:
-                                    res.methods.push("POST");
-                                    break;
-                                case HttpMethod.HEAD:
-                                    res.methods.push("HEAD");
-                                    break;
-                            }
-                        });
-
-                        webStuff = res;
-
-                    }
-
-
-                    if(isAction(action)){
-
-                        actions.push({
-                            name: meta.name,
-                            description: meta.description,
-                            middleware: meta.middleware.map((item) =>{
-                                let res = item.getMetaData();
-
-                                res.params = {
-                                    schema: res.params.toJSON(),
-                                    name: item.getParamsName()
-                                };
-                                return res;
-                            }),
-                            possibleErrors: meta.errors,
-                            supportsUpdates: meta.supportsUpdates,
-                            webConfig: webStuff,
-                            params: {
-                                schema : meta.params.toJSON(),
-                                name: action.getParamsName()
-                            },
-                            result:  {
-                                schema: meta.result.toJSON(),
-                                name: action.getResultName()
-                            }
-                        });
-
-
-                    }
-
-
+                    console.log(action.toJson().params);
 
                 }
 
@@ -112,14 +87,6 @@ export default (main,packageJson,writeToFile=false) => {
 
                 namespaceResult.push({
                     name: namespace.getName(),
-                    middleware: namespace.getMiddleware().map((item) =>{
-                        let res = item.getMetaData();
-                        res.params = {
-                            schema: res.params.toJSON(),
-                            name: item.getParamsName()
-                        };
-                        return res;
-                    }),
                     actions: actions,
                 })
 
@@ -127,9 +94,7 @@ export default (main,packageJson,writeToFile=false) => {
 
 
             let result = {
-                version: packageJson.version,
-                connectors: main.getConnectors().map((item) => { return item.getMeta() }),
-                applicationConfig: packageJson.floodConfig,
+
                 namespaces: namespaceResult,
             };
 

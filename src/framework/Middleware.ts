@@ -1,5 +1,5 @@
 import { Type, Action, Err } from "../__entry";
-import {ObjectSchema} from "../validator/ObjectSchema";
+import { SchemaStore } from "flood-gate";
 
 export interface MiddlewareMeta{
     name: string;
@@ -7,25 +7,29 @@ export interface MiddlewareMeta{
     errors: Err[];
     params: Type;
 }
-export abstract class Middleware{
+export abstract class Middleware<Params>{
 
-    private action: Action;
+    private action: Action<any,any>;
     private done: boolean;
+    private processedMiddleware: number;
 
-    abstract getMetaData(): MiddlewareMeta;
+    public params: Params;
 
-    getParamsName(): string{
-        let params = this.getMetaData().params;
-        if(ObjectSchema.isObjectSchema(params)){
-            return params.getClassName();
-        }else{
-            return this.makeClassName(this.getMetaData().name)+"Params"
-        }
+    abstract getName(): string;
+    abstract getDescription(): string;
+
+    abstract getParamsClass(): {new ():Params};
+
+    public getErrors(): Err[]{
+        return [];
     }
 
-    makeClassName(input: string){
-        return input.charAt(0).toUpperCase+input.slice(1);
+    public getMiddleware(): Middleware<any>[]{
+        return [];
     }
+
+
+
 
     fail(errorCode: string,additionalData?: any){
         this.action.fail(errorCode,additionalData);
@@ -36,26 +40,58 @@ export abstract class Middleware{
             this.action.nextMiddleware();
             this.done = true;
         }else{
-            console.error("FATAL: Middleware "+this.getMetaData().name+" called next twice! THIS IS A NOGO!");
+            console.error("FATAL: Middleware "+this.getName()+" called next twice! THIS IS A NOGO!");
         }
     }
 
-    execute(action: Action){
-        this.action = action;
-        // Check the params
-
-        this.getMetaData().params.validate(action.params,(err: any,newParams: any) => {
-            if(err == null){
-                action.params = newParams;
-                this.run(action);
-            }else{
-                console.log(this.getMetaData().params.toJSON());
-                action.fail("invalidParams",err);
-            }
-
-        },"root(Middleware: "+this.getMetaData().name+")");
+    nextMiddleware(action: Action<any,any>){
+        this.processedMiddleware++;
+        if(this.getMiddleware().length == this.processedMiddleware){
+            this.checkParams(action)
+        }else{
+            this.getMiddleware()[this.processedMiddleware].execute(action);
+        }
     }
 
-    abstract run(action: Action);
+    checkParams(action: Action<any,any>){
+
+        this.params = SchemaStore.populateSchema<Params>(this.getParamsClass(),action.paramsRaw,this.getGroup());
+
+        SchemaStore.validate(this.params,(err,params) => {
+           if(err != null){
+               this.fail("invalidParams",err);
+           }else{
+               console.log(params);
+               this.action.setParams(params);
+               this.params = params;
+               this.run(action);
+           }
+        });
+
+    }
+    public getGroup(): string{
+        return null;
+    }
+
+    toJSON(){
+        return {
+            name: this.getName(),
+            description: this.getDescription(),
+            params: this.getParamsClass()["name"],
+            middleware: this.getMiddleware().map((item) =>{  return  item.toJSON() })
+        }
+    }
+
+    execute(action: Action<any,any>){
+        this.action = action;
+        if(this.getMiddleware().length == 0){
+            this.checkParams(action);
+        }else{
+            this.nextMiddleware(action);
+        }
+
+    }
+
+    abstract run(action: Action<any,any>);
 
 }

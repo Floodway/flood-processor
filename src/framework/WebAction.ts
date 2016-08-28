@@ -4,57 +4,17 @@ import {Err} from "./Err";
 import {Type} from "../validator/Type";
 import {BodyMode} from "./BodyMode";
 import {HttpMethod} from "./HttpMethod";
-export interface WebMeta{
-    name: string;
-    description: string;
-    params: Type;
-    result: Type;
-    exposeParams?: Type;
-    errors: Err[];
-    middleware: Middleware[];
-}
 
-export abstract class WebAction extends Action{
 
-    constructor(){
-        super();
-    }
 
-    getUrl(): string{
-        return "/"+this.getMetaData().name
-    }
-    getBodyMode(): BodyMode{
-        return BodyMode.JSON;
-    }
-    abstract getHttpMethods(): HttpMethod[]
-    useNamespaceRouter(): boolean{
-        return true;
-    }
+export interface WebAction{
 
-    allowUploads(): boolean{
-        return false;
-    }
+    getUrl(): string;
 
-    abstract getWebMetaData(): WebMeta;
-    getMetaData(){
+    getBodyMode(): BodyMode;
 
-        let meta = this.getWebMetaData();
+    getHttpMethods(): HttpMethod[];
 
-        return {
-            supportsUpdates: false,
-            name: meta.name,
-            description: meta.description,
-            params: meta.params,
-            exposeParams: meta.exposeParams,
-            result: meta.result,
-            errors: meta.errors,
-            middleware: meta.middleware
-        }
-
-    }
-
-    static isWebAction(action: any): action is WebAction{
-        return action.getUrl !== undefined;
-    }
+    useNamespaceRouter(): boolean;
 
 }

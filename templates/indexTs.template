@@ -1,0 +1,18 @@
+import { Floodway, WebConnector, WebSocketConnector } from "floodway";
+
+let flood = new Floodway();
+let webConnector = new WebConnector({
+    port: 4040,
+});
+
+flood.registerConnector(webConnector);
+
+flood.registerConnector(new WebSocketConnector({
+    server: webConnector.getServer(),
+    allowedOrigins: ["*"]
+}));
+
+// Leave this comment here to allow for automatic insertion of namespaces. If you rename the variable holding your flood instance, replace value after the ":".
+//INSERT
+
+export default flood;

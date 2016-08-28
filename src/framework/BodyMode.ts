@@ -1,4 +1,5 @@
 export enum BodyMode{
     JSON,
-    UrlEncoded
+    UrlEncoded,
+    Upload
 }

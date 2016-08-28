@@ -43,7 +43,7 @@ export class ObjectSchema extends Type{
     }
 
     static isObjectSchema(input: any): input is ObjectSchema{
-        return input.getClassName !== undefined;
+        return input.toJSON().type == "object";
     }
 
     toJSON(): any{

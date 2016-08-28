@@ -35,7 +35,7 @@ var ObjectSchema = (function (_super) {
         }
     };
     ObjectSchema.isObjectSchema = function (input) {
-        return input.getClassName !== undefined;
+        return input.toJSON().type == "object";
     };
     ObjectSchema.prototype.toJSON = function () {
         var children = {};

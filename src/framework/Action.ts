@@ -7,7 +7,9 @@ import {
 import * as _ from "lodash";
 import { EventEmitter } from "events";
 import { RedisClient } from "redis";
-import {ObjectSchema} from "../validator/ObjectSchema";
+import { SchemaStore } from "flood-gate";
+
+import {ClientTokens} from "./ClientTokens";
 
 
 
@@ -15,23 +17,15 @@ export interface ActionParams{
     sendData: {(data: any): void};
     namespace: string;
     params: any;
-    sessionId: string;
+    clientTokens: ClientTokens;
     listensForEvents?: boolean;
     requestId: string;
 
 }
 
-export interface ActionMeta{
-    name: string;
-    description: string;
-    params: Type;
-    exposeParams?: Type;
-    result: Type;
-    middleware: Middleware[];
-    errors: Err[];
-    supportsUpdates: boolean;
+export interface IAction {
+    new (): Action<any,any>
 }
-
 let defaultErrors = [
     {
         errorCode: "internalError",
@@ -47,61 +41,104 @@ let defaultErrors = [
     }
 ];
 
-export abstract class Action extends EventEmitter{
+export abstract class Action<Params,Result> extends EventEmitter{
 
-    abstract getMetaData(): ActionMeta;
-
-
-    private sendData: {(data: any): void};
-    public namespace: Namespace;
-    public requestId: string;
-    private middleware: Middleware[];
-    public redis: RedisClient;
-    public sessionId: string;
-    public params: any;
+    private namespace: Namespace;
+    private requestId: string;
+    private clientTokens: ClientTokens;
+    private redis: RedisClient;
     private processedMiddleware: number;
+    private sendData: { (data: any): void };
+    public paramsRaw: any;
+
+    private params: Params;
+
+
+    toJson(){
+
+        return {
+            name: this.getName(),
+            description: this.getDescription(),
+            middleware: this.getAllMiddleware().map((middleware) => { return middleware.toJSON() }),
+            errors: this.getPossibleErrors()
+        }
+
+    }
+
+    abstract getParamsClass(): Function;
+    abstract getResultClass(): Function;
+
+    // Getters
+    public getNamespace(): Namespace{ return this.namespace; }
+
+
+    public setNamespace(namespace: Namespace){
+        this.namespace = namespace;
+    }
+
+    public getRequestId(): string{ return this.requestId; }
+
+    public getRedis(): RedisClient{ return this.redis; }
+
+    public getMiddleware(): Middleware<any>[] {
+        return [];
+    }
+
+
+
+    public ignoreNamespaceMiddleware(): boolean{ return false; }
+
+    public getParams(): Params { return this.params; }
+
+    abstract getName(): string;
+    public getErrors(): Err[]{ return []; }
+    abstract getDescription(): string;
+
+
+    public supportsUpdates(): boolean{
+        return false;
+    }
+
+    public getGroup(): string{
+        return null;
+    }
+
 
     constructor(){
         super();
     }
 
-    makeClassName(input: string): string{
-        return input.charAt(0).toUpperCase()+input.slice(1);
+
+
+    public setParams(params: any){
+        this.params = SchemaStore.populateSchema<Params>(this.getParamsClass(),params,this.getGroup());
     }
 
-
-
-    getParamsName(): string{
-        let params: Type | ObjectSchema = this.getMetaData().params;
-        if(ObjectSchema.isObjectSchema(params)){
-            params.getClassName();
-        }else{
-            return this.makeClassName(this.getMetaData().name)+"Params";
-        }
-
-    }
-
-    getResultName(): string{
-
-        let result: Type | ObjectSchema = this.getMetaData().result;
-        if(ObjectSchema.isObjectSchema(result)){
-            result.getClassName();
-        }else{
-            return this.makeClassName(this.getMetaData().name)+"Result";
-        }
-    }
 
     populate(params: ActionParams,floodway: Floodway){
+
+        //Callback
         this.sendData = params.sendData;
-        this.params = params.params;
-        this.sessionId = params.sessionId;
+
+        this.paramsRaw = params.params;
+
+        this.clientTokens = params.clientTokens;
+
+
+        // Initial values
         this.processedMiddleware = -1;
+
+        // Store requestId
         this.requestId = params.requestId;
+
+        // Get reference to the namespace;
         this.namespace = floodway.getNamespace(params.namespace);
-        this.middleware = this.namespace.getMiddleware().concat(this.getMetaData().middleware);
+
+
         this.redis = params.listensForEvents ? floodway.getRedisEvent() : floodway.getRedis();
 
-        if(this.middleware.length != 0){
+
+        if(this.getAllMiddleware().length != 0){
             this.nextMiddleware();
         }else{
            this.execute();
@@ -109,39 +146,52 @@ export abstract class Action extends EventEmitter{
     }
 
 
+    getAllMiddleware(): Middleware<any>[]{
+
+        let middleware: Middleware<any>[] = [];
+
+        if(!this.ignoreNamespaceMiddleware()){
+            middleware = middleware.concat(this.getNamespace().getMiddleware());
+        }
+
+        middleware = middleware.concat(this.getMiddleware());
+
+        return middleware;
+
+    }
     getPossibleErrors(): Err[]{
         // Get errors from  middleware,defaultErrors,and action errors
         let middlewareErrors: Err[] = [];
 
-        this.middleware.map((middleware) => {
-            let errs = middleware.getMetaData().errors.map((err) => {
-                err.source = middleware.getMetaData().name;
-                return err;
-            });
-           middlewareErrors = middlewareErrors.concat(errs);
+        this.getAllMiddleware().map((middleware) => {
+           middlewareErrors = middlewareErrors.concat(middleware.getErrors().map((err) => { err.source = middleware.getName(); return err; }));
         });
 
-        return defaultErrors.concat(this.getMetaData().errors).concat(middlewareErrors);
+
+        return defaultErrors.concat(this.getErrors()).concat(middlewareErrors);
     }
 
 
     execute(){
-        this.getMetaData().params.validate(this.params,(err: any,result: any) => {
-            if(err != null){
-                this.fail("invalidParams",err)
-            }else{
-                this.params = result;
-                this.run();
-            }
-        },"root(ActionParams)");
+
+        SchemaStore.validate(this.params,(err,res) => {
+
+            this.params = res;
+
+            if(err != null){ return this.fail("invalidParams",JSON.stringify(err)); }
+
+            this.run();
+
+        });
+
     }
 
     nextMiddleware(){
         this.processedMiddleware++;
-        if(this.processedMiddleware == this.middleware.length){
+        if(this.processedMiddleware == this.getAllMiddleware().length){
             this.execute();
         }else{
-            this.middleware[this.processedMiddleware].execute(this);
+            this.getAllMiddleware()[this.processedMiddleware].execute(this);
         }
     }
     done(){
@@ -151,25 +201,28 @@ export abstract class Action extends EventEmitter{
     }
 
     // Called whenver an action has a result
-    res(data: any,final= false){
+    res(data: Result,final= false){
         //  Check if the result is valid.
-        this.getMetaData().result.validate(data,(err: any, res: any) =>{
-            // Error checking
+
+        SchemaStore.validate(data,(err,res) => {
+
             if(err != null){
                 this.fail("invalidResult",err);
             } else {
-                // Send it!
                 this.sendData({
                     messageType: "response",
                     requestId: this.requestId,
                     params: res
                 });
             }
-            // We're done here!
-            if(!this.getMetaData().supportsUpdates || final){
-                this.emit("done");
-            }
-        },"root(ActionResult)");
+
+        });
+
+
+
+        if(!this.supportsUpdates() || final){
+            this.emit("done");
+        }
     }
     // Whenever something fails
     fail(errorCode: string,additionalData?: any){
@@ -207,9 +260,4 @@ export abstract class Action extends EventEmitter{
     }
 
     abstract run(): void;
-}
-
-
-export interface IAction{
-    new (): Action;
 }

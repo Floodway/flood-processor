@@ -32,18 +32,17 @@ function getName() {
 }
 getName().then(function (info) {
     var rootDir = path.join(process.cwd(), info["name"]);
-    console.log(chalk.green("Create new directory"));
+    console.log(chalk.green("Creating new directory"));
     fs.mkdirSync(rootDir);
     console.log(chalk.green("Installing dependencies"));
-    child_process_1.exec("npm init -y && npm i --save floodway typescript").on("close", function () {
-        var indexTs = "\n\n\n";
-        var configJson = "\n";
-        var tsConfig = "\n\n";
+    child_process_1.exec("npm init -y && npm i --save floodway typescript", {
+        cwd: rootDir
+    }).on("close", function () {
         console.log(chalk.green("Creating default files"));
         fs.mkdirSync(path.join(rootDir, "src"));
         fs.mkdirSync(path.join(rootDir, "src", "namespaces"));
-        fs.writeFileSync(path.join(rootDir, "src", "index.ts"), indexTs);
-        fs.writeFileSync(path.join(rootDir, "src", "config.json"), configJson);
-        fs.writeFileSync(path.join(rootDir, "tsconfig.json"), tsConfig);
+        fs.writeFileSync(path.join(rootDir, "src", "index.ts"), fs.readFileSync(path.join(__dirname, "../../templates/indexTs.template")));
+        fs.writeFileSync(path.join(rootDir, "tsconfig.json"), fs.readFileSync(path.join(__dirname, "../../templates/tsConfig.template")));
+        console.log(chalk.green("Done."));
     });
 });

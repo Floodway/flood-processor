@@ -5,12 +5,13 @@ import { Server } from "ws";
 import *  as Socket from "ws";
 import {Server as WebServer , ServerRequest } from "http";
 import {DownloadAction} from "./DownloadAction";
+import {ClientToken, ClientTokens} from "./ClientTokens";
 
 export interface WebSocketConnectorConfig{
 
     server: WebServer
 
-    port: number
+    port?: number
 
     allowedOrigins: string[]
 
@@ -91,12 +92,31 @@ export class WebSocketConnector{
             socket: socket
         };
 
+        let clientTokens;
+        let tokens: { [path:string]:ClientToken } = {};
+
+        if(socket.upgradeReq.headers.hasOwnProperty("cookie")){
+            var cookies = Cookie.parse(socket.upgradeReq.headers.cookie);
+
+
+
+            for(let name of Object.keys(cookies)){
+                tokens[name] = {
+                    value: cookies[name],
+                    expires: null
+                }
+            }
+
+            clientTokens = new ClientTokens(tokens);
+        }
+
+
         let ssid  =  Cookie.parse(socket.upgradeReq.headers.cookie)["flood-ssid"];
 
         this.connections.push(connection);
 
         let clientId: string;
-        let requests: Action[] = [];
+        let requests: Action<any,any>[] = [];
 
         socket.on("close",() => {
             for(let request of requests){
@@ -159,7 +179,7 @@ export class WebSocketConnector{
                                         params: data.params.params,
                                         namespace: namespace.getName(),
                                         requestId: data.requestId,
-                                        sessionId: ssid,
+                                        clientTokens,
                                         sendData: (data: any) =>{
                                             socket.send(JSON.stringify(data))
                                         }
@@ -178,7 +198,7 @@ export class WebSocketConnector{
                                         }
 
                                        requests = requests.filter((item) => {
-                                           return item.requestId != action.requestId
+                                           return item.getRequestId() != action.getRequestId()
                                        });
                                     });
                                 }else{
@@ -210,8 +230,8 @@ export class WebSocketConnector{
 
                         case "cancelRequest":
 
-                            var requestsFiltered = requests.filter(function(req: Action){
-                                return req.requestId == data.requestId;
+                            var requestsFiltered = requests.filter(function(req: Action<any,any>){
+                                return req.getRequestId() == data.requestId;
                             });
 
                             for(let item of requestsFiltered){
@@ -247,23 +267,14 @@ export class WebSocketConnector{
     verifyClient(info: {origin: string; secure: boolean; req: ServerRequest}): boolean{
 
 
-        if(info.req.headers.hasOwnProperty("cookie")){
+        // Build client tokens
 
-            var cookies = Cookie.parse(info.req.headers.cookie);
+        if(this.config.allowedOrigins.length == 0 || this.config.allowedOrigins.indexOf("*") != -1){
+            return true;
+        }
 
-            if(
-                cookies["flood-ssid"] != null &&
-                cookies["flood-ssid"].length == 36
-            ){
-
-              if(this.config.allowedOrigins.length == 0 || this.config.allowedOrigins.indexOf("*") != -1){
-                  return true;
-              }
-
-              if(this.config.allowedOrigins.indexOf(info.origin) != -1){
-                  return true;
-              }
-            }
+        if(this.config.allowedOrigins.indexOf(info.origin) != -1){
+            return true;
         }
 
         return false;

@@ -4,12 +4,16 @@ var __extends = (this && this.__extends) || function (d, b) {
     function __() { this.constructor = d; }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
 };
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
 var __entry_1 = require("../__entry");
-var StringSchema_1 = require("../validator/StringSchema");
-var NumberSchema_1 = require("../validator/NumberSchema");
-var ArraySchema_1 = require("../validator/ArraySchema");
-var DownloadAction_1 = require("../framework/DownloadAction");
+var flood_gate_1 = require("flood-gate");
 var BodyMode_1 = require("../framework/BodyMode");
+var Middleware_1 = require("../framework/Middleware");
 var flood = new __entry_1.Floodway();
 var webConnector = new __entry_1.WebConnector({
     port: 4040,
@@ -17,109 +21,77 @@ var webConnector = new __entry_1.WebConnector({
 flood.registerConnector(webConnector);
 flood.registerConnector(new __entry_1.WebSocketConnector({
     server: webConnector.getServer(),
-    allowedOrigins: ["*"],
-    port: null
+    allowedOrigins: ["*"]
 }));
+var TestParams = (function () {
+    function TestParams() {
+    }
+    __decorate([
+        flood_gate_1.Str({ groups: ["exposed"] }),
+        flood_gate_1.Str({ groups: ["middleware"], toUpperCase: true })
+    ], TestParams.prototype, "name", void 0);
+    TestParams = __decorate([
+        flood_gate_1.Schema({ mode: flood_gate_1.SchemaMode.LOOSE })
+    ], TestParams);
+    return TestParams;
+}());
+var TestResult = (function () {
+    function TestResult() {
+    }
+    __decorate([
+        flood_gate_1.Str()
+    ], TestResult.prototype, "name", void 0);
+    TestResult = __decorate([
+        flood_gate_1.Schema({ mode: flood_gate_1.SchemaMode.LOOSE })
+    ], TestResult);
+    return TestResult;
+}());
+var TestMiddleware = (function (_super) {
+    __extends(TestMiddleware, _super);
+    function TestMiddleware() {
+        _super.apply(this, arguments);
+    }
+    TestMiddleware.prototype.getName = function () { return "testMiddleware"; };
+    TestMiddleware.prototype.getDescription = function () { return ""; };
+    TestMiddleware.prototype.getParamsClass = function () { return TestParams; };
+    TestMiddleware.prototype.getGroup = function () { return "middleware"; };
+    TestMiddleware.prototype.run = function () {
+        this.next();
+    };
+    return TestMiddleware;
+}(Middleware_1.Middleware));
 var TestAction = (function (_super) {
     __extends(TestAction, _super);
     function TestAction() {
         _super.apply(this, arguments);
     }
-    TestAction.prototype.getHttpMethods = function () {
-        return [__entry_1.HttpMethod.POST];
-    };
-    TestAction.prototype.getWebMetaData = function () {
-        return {
-            params: new __entry_1.ObjectSchema("TestParams").children({
-                items: new ArraySchema_1.ArraySchema().child(new __entry_1.ObjectSchema("TestChild").children({
-                    meta: new __entry_1.ObjectSchema("meta").children({
-                        foo: new StringSchema_1.StringSchema(),
-                        bar: new StringSchema_1.StringSchema()
-                    }),
-                    bar: new StringSchema_1.StringSchema()
-                }))
-            }),
-            result: new __entry_1.ObjectSchema("TestActionResult").children({
-                time: new NumberSchema_1.NumberSchema()
-            }),
-            errors: [],
-            middleware: [],
-            name: "test",
-            description: "Test action"
-        };
-    };
+    TestAction.prototype.getUrl = function () { return "/test"; };
+    TestAction.prototype.getHttpMethods = function () { return [__entry_1.HttpMethod.GET]; };
+    TestAction.prototype.getBodyMode = function () { return BodyMode_1.BodyMode.JSON; };
+    TestAction.prototype.useNamespaceRouter = function () { return true; };
+    TestAction.prototype.getParamsClass = function () { return TestParams; };
+    TestAction.prototype.getGroup = function () { return "exposed"; };
+    TestAction.prototype.getMiddleware = function () { return [new TestMiddleware()]; };
+    TestAction.prototype.getResultClass = function () { return TestResult; };
+    TestAction.prototype.getName = function () { return "testAction"; };
+    TestAction.prototype.getDescription = function () { return "Does something!"; };
     TestAction.prototype.run = function () {
-        this.res({
-            time: Date.now()
-        });
+        var result = new TestResult();
+        result.name = this.getParams().name;
+        this.res(result);
     };
     return TestAction;
-}(__entry_1.WebAction));
-var ExampleDownload = (function (_super) {
-    __extends(ExampleDownload, _super);
-    function ExampleDownload() {
-        _super.apply(this, arguments);
-    }
-    ExampleDownload.prototype.getName = function () {
-        return "download";
-    };
-    ExampleDownload.prototype.getParams = function () {
-        return new __entry_1.ObjectSchema("NoParams").children({});
-    };
-    ExampleDownload.prototype.run = function () {
-        this.res({
-            path: "C:\\im.jpg"
-        });
-    };
-    return ExampleDownload;
-}(DownloadAction_1.DownloadAction));
-var ExampleUpload = (function (_super) {
-    __extends(ExampleUpload, _super);
-    function ExampleUpload() {
-        _super.apply(this, arguments);
-    }
-    ExampleUpload.prototype.allowUploads = function () {
-        return true;
-    };
-    ExampleUpload.prototype.getHttpMethods = function () {
-        return [__entry_1.HttpMethod.POST];
-    };
-    ExampleUpload.prototype.getBodyMode = function () {
-        return BodyMode_1.BodyMode.UrlEncoded;
-    };
-    ExampleUpload.prototype.getWebMetaData = function () {
-        return {
-            name: "upload",
-            description: "Uploads a file",
-            result: new __entry_1.ObjectSchema("NoRes").children({}),
-            params: new __entry_1.ObjectSchema("ExampleUploadParamsProcessed").children({
-                file: __entry_1.FileSchema
-            }),
-            exposeParams: new __entry_1.ObjectSchema("ExampleUploadParams").children({
-                file: new StringSchema_1.StringSchema()
-            }),
-            errors: [],
-            middleware: []
-        };
-    };
-    ExampleUpload.prototype.run = function () {
-        console.log(this.params);
-        this.res({});
-    };
-    return ExampleUpload;
-}(__entry_1.WebAction));
-var ExampleNamespace = (function (_super) {
-    __extends(ExampleNamespace, _super);
-    function ExampleNamespace() {
+}(__entry_1.Action));
+var Test = (function (_super) {
+    __extends(Test, _super);
+    function Test() {
         _super.call(this);
         this.action(TestAction);
-        this.action(ExampleDownload);
-        this.action(ExampleUpload);
     }
-    ExampleNamespace.prototype.getName = function () {
+    Test.prototype.getName = function () {
         return "test";
     };
-    return ExampleNamespace;
+    return Test;
 }(__entry_1.Namespace));
-flood.registerNamespace(new ExampleNamespace());
+flood.registerNamespace(new Test());
 module.exports = flood;

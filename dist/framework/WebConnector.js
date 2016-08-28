@@ -14,9 +14,9 @@ var fs = require("fs");
 var path = require("path");
 var DownloadAction_1 = require("./DownloadAction");
 var multer = require("multer");
-var WebAction_1 = require("./WebAction");
 var HttpMethod_1 = require("./HttpMethod");
 var BodyMode_1 = require("./BodyMode");
+var ClientTokens_1 = require("./ClientTokens");
 var upload = multer({ dest: path.join(process.cwd(), "./uploads") });
 var WebConnector = (function (_super) {
     __extends(WebConnector, _super);
@@ -51,27 +51,29 @@ var WebConnector = (function (_super) {
             }
         };
     };
+    WebConnector.prototype.isWebAction = function (input) {
+        return input.getUrl !== undefined;
+    };
     WebConnector.prototype.handleRequest = function (namespace, actionI, req, res) {
         var action = new actionI();
         var params = _.extend(req.body, req.params, req.query, { file: req.file });
-        console.log(req.file);
-        var ssid;
-        if (req.cookies["flood-ssid"] == null) {
-            ssid = __entry_1.Utils.generateUUID();
-            res.cookie("flood-ssid", ssid, { httpOnly: true, expires: new Date(Date.now() + 900000) });
+        var tokens = {};
+        for (var _i = 0, _a = Object.keys(req.cookies); _i < _a.length; _i++) {
+            var name_1 = _a[_i];
+            tokens[name_1] = {
+                value: req.cookies[name_1],
+                expires: null
+            };
         }
-        else {
-            ssid = req.cookies["flood-ssid"];
-        }
-        if (WebAction_1.WebAction.isWebAction(action)) {
+        var clientTokens = new ClientTokens_1.ClientTokens(tokens);
+        if (this.isWebAction(action)) {
             action.populate({
                 namespace: namespace.getName(),
                 params: params,
+                clientTokens: clientTokens,
                 requestId: "web:" + __entry_1.Utils.generateUUID(),
-                sessionId: ssid,
                 sendData: function (data) {
                     if (DownloadAction_1.DownloadAction.isDownloadAction(action)) {
-                        console.log(data.params.path);
                         if (data.messageType == "response" && fs.existsSync(data.params.path)) {
                             res.sendFile(data.params.path);
                         }
@@ -104,35 +106,28 @@ var WebConnector = (function (_super) {
         this.floodway = floodway;
         var namespaces = floodway.getNamespaces();
         for (var _i = 0, _a = Object.keys(namespaces); _i < _a.length; _i++) {
-            var name_1 = _a[_i];
-            var namespace = namespaces[name_1];
+            var name_2 = _a[_i];
+            var namespace = namespaces[name_2];
             var nsRouter = express.Router();
             for (var _b = 0, _c = Object.keys(namespace.getActions()); _b < _c.length; _b++) {
                 var actionName = _c[_b];
                 var actionI = namespace.getAction(actionName);
                 var action = new actionI();
-                if (WebAction_1.WebAction.isWebAction(action)) {
+                if (this.isWebAction(action)) {
                     var router = action.useNamespaceRouter() ? nsRouter : this.app;
                     for (var _d = 0, _e = action.getHttpMethods(); _d < _e.length; _d++) {
                         var method = _e[_d];
                         var url = action.getUrl();
                         var bodyMode = action.getBodyMode();
-                        var useMulter = action.allowUploads();
-                        if (bodyMode == BodyMode_1.BodyMode.JSON && useMulter) {
-                            throw new Error("Can not combine JSON Mode with uploads");
-                        }
                         var args = [url];
-                        if (useMulter) {
-                            args.push(upload.single("file"));
-                            console.log("Applied Multer");
+                        if (bodyMode == BodyMode_1.BodyMode.JSON) {
+                            args.push(bodyParser.json());
                         }
                         else {
-                            if (bodyMode == BodyMode_1.BodyMode.JSON) {
-                                args.push(bodyParser.json());
+                            if (bodyMode = BodyMode_1.BodyMode.Upload) {
+                                args.push(upload.single("file"));
                             }
-                            else {
-                                args.push(bodyParser.urlencoded({ extended: false }));
-                            }
+                            args.push(bodyParser.urlencoded({ extended: false }));
                         }
                         args.push(this.handleRequest.bind(this, namespace, actionI));
                         switch (method) {

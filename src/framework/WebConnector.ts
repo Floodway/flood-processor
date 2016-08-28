@@ -11,12 +11,13 @@ import * as multer from "multer";
 import {WebAction} from "./WebAction";
 import {HttpMethod} from "./HttpMethod";
 import {BodyMode} from "./BodyMode";
+import {ClientTokens, ClientToken} from "./ClientTokens";
 
 let upload = multer({ dest : path.join(process.cwd(),"./uploads")});
 
 export interface WebConnectorConfig {
     port:number;
-
+    addHeaders?: { [path:string]:string }
 }
 
 
@@ -67,43 +68,41 @@ export class WebConnector extends Connector {
         }
     }
 
+    isWebAction(input: any): input is WebAction{
+        return input.getUrl !== undefined;
+    }
+
     handleRequest(namespace: Namespace,actionI:IAction, req:express.Request, res:express.Response) {
 
-        let action: Action = new actionI();
+        let action: Action<any,any> = new actionI();
 
 
 
         let params = _.extend(req.body,req.params,req.query,{ file: req.file });
 
-        console.log(req.file);
 
-        let ssid: string;
+        let tokens: { [path:string]:ClientToken } = {};
 
-
-
-        if(req.cookies["flood-ssid"] == null){
-
-            ssid = Utils.generateUUID();
-
-            res.cookie("flood-ssid",ssid,{ httpOnly: true  , expires: new Date(Date.now() + 900000) })
-
-
-        }else{
-            ssid = req.cookies["flood-ssid"];
-
+        for(let name of Object.keys(req.cookies)){
+            tokens[name] = {
+                value: req.cookies[name],
+                expires: null
+            }
         }
 
-        if(WebAction.isWebAction(action)){
-            action.populate({
+        let clientTokens = new ClientTokens(tokens);
 
+        if(this.isWebAction(action)){
+
+            action.populate({
                 namespace: namespace.getName(),
                 params: params,
+                clientTokens: clientTokens,
                 requestId: "web:"+Utils.generateUUID(),
-                sessionId: ssid,
                 sendData: (data: any) => {
 
                     if(DownloadAction.isDownloadAction(action)){
-                        console.log(data.params.path);
+
                         if(data.messageType == "response" && fs.existsSync(data.params.path)){
                             res.sendFile(data.params.path);
                         }else if(data.messageType == "error"){
@@ -130,8 +129,6 @@ export class WebConnector extends Connector {
             });
             action.done();
         }
-
-
     }
 
     start(floodway:Floodway) {
@@ -146,32 +143,28 @@ export class WebConnector extends Connector {
             for (let actionName of Object.keys(namespace.getActions())) {
                 // Retrieve action and actionI
                 let actionI = namespace.getAction(actionName);
-                let action:Action | WebAction = new actionI();
+                let action:Action<any,any> | WebAction = new actionI();
                 // Check if it's a webAction
-                if (WebAction.isWebAction(action)) {
+                if (this.isWebAction(action)) {
                     let router = action.useNamespaceRouter() ? nsRouter : this.app;
                     for (let method of action.getHttpMethods()) {
 
                         let url = action.getUrl();
                         let bodyMode = action.getBodyMode();
-                        let useMulter = action.allowUploads();
 
-                        if(bodyMode == BodyMode.JSON && useMulter){
-                            throw new Error("Can not combine JSON Mode with uploads");
-                        }
 
                         let args: any[] = [url];
 
-                        if(useMulter){
-                            args.push(upload.single("file"));
-                            console.log("Applied Multer");
+
+                        if(bodyMode == BodyMode.JSON){
+                            args.push(bodyParser.json())
                         }else{
-                            if(bodyMode == BodyMode.JSON){
-                                args.push(bodyParser.json())
-                            }else{
-                                args.push(bodyParser.urlencoded({ extended: false}))
+                            if(bodyMode = BodyMode.Upload){
+                                args.push(upload.single("file"));
                             }
+                            args.push(bodyParser.urlencoded({ extended: false}))
                         }
+
 
                         args.push(this.handleRequest.bind(this,namespace,actionI));
 

@@ -4,86 +4,61 @@ import * as inquirer from "inquirer";
 import *  as fs from "fs";
 import *  as chalk from "chalk";
 import *  as path from "path";
-import {Floodway,Type,ObjectSchema,NumberSchema,ArraySchema,Action,Namespace,IAction} from "../__entry";
+import {Floodway, Type, ObjectSchema, ArraySchema, Namespace, IAction} from "../__entry";
 import findMain from "./findMain";
+import _ = require("lodash");
+
+// Init
+program.parse(process.argv);
+
+let files, main: Floodway, outDir, javaPackage;
+
+files = findMain();
+main = files.main;
 
 
-program
-    .parse(process.argv);
-
-let files = findMain();
-
-let main: Floodway = files.main;
-
-function isObjectSchema(input: any) : input is ObjectSchema{
-    return input.getClassName !== undefined;
-}
-
-function isNumberSchema(input: any): input is NumberSchema{
-    return input.allowsDecimals !== undefined;
-}
-
-function isArraySchema(input: any): input is ArraySchema{
-    return input.getChildSchema !== undefined;
-}
-
-function makeClassName(input: string){
-    return input.charAt(0).toUpperCase()+input.slice(1);
-}
-
-
-
-let outDir;
+// Determine out directory
 if(files.packageJson.javaOut == null){
     outDir = path.join(process.cwd(),"./java");
 }else{
     outDir = files.packageJson.javaOut;
 }
 
-let javaPackage = "";
+if(!fs.existsSync(outDir)){ fs.mkdirSync(outDir);}
+
+// Determine Java package
 if(files.packageJson.javaPackage != null){
     javaPackage = "package "+files.packageJson.javaPackage+";";
+}else{
+    javaPackage = "";
 }
 
 
-
-
 function getType(schema: Type){
-    if(isObjectSchema(schema)){
+
+    if(ObjectSchema.isObjectSchema(schema)){
         return schema.getClassName();
     }else{
+
         let json = schema.toJSON();
 
         switch(json.type){
             case "number":
-
                 return json.allowsDecimals ? "float" : "long";
-
             case "string":
-
                 return "String";
-
             case "array":
-
-                if(isArraySchema(schema)){
-
+                if(ArraySchema.isArraySchema(schema)){
                     return "List<"+getType(schema.getChildSchema())+">";
                 }
-
                 break;
             case "boolean":
-
-                    return "boolean";
-
-
-
+                return "boolean";
         }
     }
 }
 
-function generateSchemas(namespace: Namespace){
-
-    console.log(chalk.green("→  Generating namespace: "+namespace.getName()));
+function generateSchemas(namespace: Namespace,generateImmutables){
 
     let result = "";
     let generatedObjects : { [path:string]:string } = {};
@@ -94,34 +69,57 @@ function generateSchemas(namespace: Namespace){
 
         function convertSchema(schemaI: Type){
             let setters  = 0;
-            if(isObjectSchema(schemaI)){
+            let result = "";
+            if(ObjectSchema.isObjectSchema(schemaI)){
 
                 if(schemaI.getClassName().indexOf(".") == -1 && !generatedObjects.hasOwnProperty(schemaI.getClassName())){
-                    let result = "    public static class "+schemaI.getClassName()+"{";
-                    Object.keys(schemaI.getChildren()).map((key) => {
-                        let childSchema = schemaI.getChild(key);
-                        if(isObjectSchema(childSchema)){
-                            convertSchema(childSchema);
-                        }
-                        if(isArraySchema(childSchema)){
-                            convertSchema(childSchema.getChildSchema());
-                        }
-                        result += "public "+getType(childSchema)+" "+key+";";
-                    });
+                    if(!generateImmutables){
 
-                    Object.keys(schemaI.getChildren()).map((key) => {
-                        let childSchema = schemaI.getChild(key);
+                        result += "    public static class "+schemaI.getClassName()+"{";
+                        Object.keys(schemaI.getChildren()).map((key) => {
+                            let childSchema = schemaI.getChild(key);
+                            if(ObjectSchema.isObjectSchema(childSchema)){
+                                convertSchema(childSchema);
+                            }
+                            if(ArraySchema.isArraySchema(childSchema)){
+                                convertSchema(childSchema.getChildSchema());
+                            }
+                            result += "public "+getType(childSchema)+" "+key+";";
+                        });
 
-                        result += "public void set"+makeClassName(key)+"("+getType(childSchema)+" "+key+"){this."+key+" = "+key+"; }";
-                        result += "public "+getType(childSchema)+" get"+makeClassName(key)+"(){ return this."+key+"; }";
+                        Object.keys(schemaI.getChildren()).map((key) => {
+                            let childSchema = schemaI.getChild(key);
 
-                        setters++;
+                            result += "public void set"+makeClassName(key)+"("+getType(childSchema)+" "+key+"){this."+key+" = "+key+"; }";
+                            result += "public "+getType(childSchema)+" get"+makeClassName(key)+"(){ return this."+key+"; }";
 
-                    });
+                            setters++;
 
-                    result += "}";
+                        });
+
+                        result += "}";
+
+                    }else{
+
+                        result +=  "    @Value.Immutable public static abstract class "+schemaI.getClassName()+"{";
+
+                        Object.keys(schemaI.getChildren()).map((key) => {
+                            let childSchema = schemaI.getChild(key);
+                            if(isObjectSchema(childSchema)){
+                                convertSchema(childSchema);
+                            }
+                            if(isArraySchema(childSchema)){
+                                convertSchema(childSchema.getChildSchema());
+                            }
+                            result += "public abstract "+getType(childSchema)+" "+key+"();";
+                        });
+                        result += "}";
+
+                    }
+
 
                     generatedObjects[schemaI.getClassName()] = result;
+
                     console.log(chalk.green("\t ✓ Generated Class: "+schemaI.getClassName()));
                     console.log(chalk.green("\t \t ✓ Generated "+setters+" Setters/Getters"))
 
@@ -154,8 +152,6 @@ function generateFunctions(namespace: Namespace){
     let result = "";
     Object.keys(namespace.getActions()).map((actionName) => {
 
-
-
         let actionI: IAction = namespace.getAction(actionName);
         let action = new actionI;
 
@@ -169,25 +165,16 @@ function generateFunctions(namespace: Namespace){
             paramsClass = getType(action.getMetaData().params);
         }
 
-        result += `
-    public abstract static class ${makeClassName(name)}Callback{
-        public abstract void result(${resultClass} result);
-        public abstract void err(String errorCode,String description);
-    }
-    
-    public static Request ${name}(${ paramsClass } params,final ${makeClassName(name)}Callback callback){
-        return new Request("${namespace.getName()}","${name}",params,new Request.RequestCallback(${resultClass}.class){
-            @Override
-            public void res(Object result){
-                callback.result((${resultClass}) result);
-            }
-            @Override
-            public void err(String ec,String desc){
-                callback.err(ec,desc);
-            }
+
+        result += convertTemplate(fs.readFileSync(path.join(__dirname,"../../templates/javaClass.template")).toString(),{
+            "action": name,
+            "namespace": namespace.getName(),
+            "className": makeClassName(name),
+            "paramsClass": paramsClass,
+            "resultClass": resultClass,
         });
-    }
-        `;
+
+
 
     });
 
@@ -195,13 +182,30 @@ function generateFunctions(namespace: Namespace){
 
 }
 
+function convertTemplate(template,vars){
 
-if(!fs.existsSync(outDir)){
-    fs.mkdirSync(outDir);
+
+
+    for(let key of Object.keys(vars)){
+        let re = new RegExp("\\${"+key+"}","g");
+        template = template.replace(re,vars[key]);
+    }
+    return template;
 }
 
 
-inquirer.prompt({
+
+
+
+let allFiles = ["Api.java","ApiActivity.java","ApiFragment.java","Request.java","ApiStatusCallback.java","SsidProvider.java","BaseUrlProvider.java","Utils.java"];
+
+let copyFiles = [];
+
+if(files.packageJson["copyFiles"] != null){
+
+}
+
+inquirer.prompt([{
     type: "checkbox",
     name: "namespaces",
     message: "Select namespaces",
@@ -212,27 +216,49 @@ inquirer.prompt({
             checked: true
         }
     })
-}).then((answer) => {
-    generateFiles(answer["namespaces"]);
+}]).then((answer) => {
+
+    generateFiles(answer["namespaces"],answer["generateImmutables"]);
+
+
+
+    files.map((file) => {
+        fs.readFile(path.join(__dirname,"../../templates",file),(err,data) => {
+            let split = data.toString().split("\n");
+            split.unshift(javaPackage);
+            fs.writeFile(path.join(outDir,file),split.join("\n"),(err) => {
+                console.log(err);
+                console.log("Copied file: "+file)
+            })
+        });
+    });
+
+
+
 });
 
 
-function generateFiles(namespaces){
+function generateFiles(namespaces,generateImmutables){
 
     namespaces.map((name) => {
         let namespace = main.getNamespace(name);
 
-        let schemas = generateSchemas(namespace);
+        let schemas = generateSchemas(namespace,generateImmutables);
         let functions = generateFunctions(namespace);
+
+        let imports = generateImmutables ? "import org.immutables.value.Value;" : "";
 
         let file = `
 ${javaPackage}
 import java.util.List;
+${imports}
 /*
 * This class was automatically generated by Floodway.
 */
+${ generateImmutables ? "@Value.Enclosing" : "" }
 public class ${makeClassName(namespace.getName())}{
     ${schemas}
+    
     ${functions}
 }
     `;

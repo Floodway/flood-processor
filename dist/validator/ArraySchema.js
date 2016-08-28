@@ -16,6 +16,9 @@ var ArraySchema = (function (_super) {
     ArraySchema.prototype.hasChildren = function () {
         return true;
     };
+    ArraySchema.isArraySchema = function (input) {
+        return input.toJSON().type == "array";
+    };
     ArraySchema.prototype.toJSON = function () {
         return {
             type: "array",

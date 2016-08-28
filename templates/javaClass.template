@@ -1,0 +1,17 @@
+public abstract static class ${className}Callback{
+    public abstract void result(${resultClass} result);
+    public abstract void err(String errorCode,String description);
+}
+
+public static Request ${action}(${paramsClass} params,final ${className}Callback callback){
+    return new Request("${namespace}","${action}",params,new Request.RequestCallback(${resultClass}.class){
+        @Override
+        public void res(Object result){
+            callback.result((${resultClass}) result);
+        }
+        @Override
+        public void err(String ec,String desc){
+            callback.err(ec,desc);
+        }
+    });
+}

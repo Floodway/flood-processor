@@ -1,72 +1,94 @@
 "use strict";
-var __extends = (this && this.__extends) || function (d, b) {
-    for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
-    function __() { this.constructor = d; }
-    d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
-var __entry_1 = require("../__entry");
-var StringSchema_1 = require("../validator/StringSchema");
-var NumberSchema_1 = require("../validator/NumberSchema");
-var ArraySchema_1 = require("../validator/ArraySchema");
-var flood = new __entry_1.Floodway();
-var webConnector = new __entry_1.WebConnector({
+var SchemaStore_1 = require("../framework/SchemaStore");
+var SchemaStringAnnotation_1 = require("../framework/SchemaStringAnnotation");
+var SchemaStore_2 = require("../framework/SchemaStore");
+var Test = (function () {
+    function Test() {
+    }
+    __decorate([
+        SchemaStringAnnotation_1.Str({ length: 3 })
+    ], Test.prototype, "name", void 0);
+    Test = __decorate([
+        SchemaStore_1.Schema({ mode: SchemaStore_1.SchemaMode.STRICT })
+    ], Test);
+    return Test;
+}());
+var test = new Test();
+test.name = "fooo";
+SchemaStore_2.schemaStore.validate(test, function (err, item) {
+    console.log(err, item);
+});
+/*
+
+let flood = new Floodway();
+
+
+let webConnector = new WebConnector({
     port: 4040,
 });
+
 flood.registerConnector(webConnector);
-flood.registerConnector(new __entry_1.WebSocketConnector({
+flood.registerConnector(new WebSocketConnector({
     server: webConnector.getServer(),
-    allowedOrigins: ["*"],
-    port: null
+    allowedOrigins: ["*"]
 }));
-var TestAction = (function (_super) {
-    __extends(TestAction, _super);
-    function TestAction() {
-        _super.apply(this, arguments);
+
+
+
+class TestParams{
+
+    name: string;
+}
+
+class TestResult{
+    @MinLength(4)
+    name: string;
+}
+
+
+class TestAction extends Action<TestParams,TestResult> implements WebAction{
+
+    getUrl(){ return "/test" }
+    getHttpMethods(){ return [HttpMethod.GET] }
+    getBodyMode(){ return BodyMode.JSON }
+    useNamespaceRouter(){ return true }
+
+    getParamsInstance(){ return  new TestParams() }
+
+    getName() { return "testAction" }
+    getDescription(){ return "Does something!" }
+
+    run(){
+
+        let result = new TestResult();
+
+        result.name = this.getParams().name;
+
+        this.res(result);
+
     }
-    TestAction.prototype.getWebConfig = function () {
-        return {
-            url: "/",
-            methods: [__entry_1.HttpMethod.GET]
-        };
-    };
-    TestAction.prototype.getMetaData = function () {
-        return {
-            params: new __entry_1.ObjectSchema("TestParams").children({
-                items: new ArraySchema_1.ArraySchema().child(new __entry_1.ObjectSchema("TestChild").children({
-                    meta: new __entry_1.ObjectSchema("meta").children({
-                        foo: new StringSchema_1.StringSchema(),
-                        bar: new StringSchema_1.StringSchema()
-                    }),
-                    bar: new StringSchema_1.StringSchema()
-                }))
-            }),
-            result: new __entry_1.ObjectSchema("TestActionResult").children({
-                time: new NumberSchema_1.NumberSchema()
-            }),
-            errors: [],
-            middleware: [],
-            name: "test",
-            supportsUpdates: false,
-            description: "Test action"
-        };
-    };
-    TestAction.prototype.run = function () {
-        this.res({
-            time: Date.now()
-        });
-    };
-    return TestAction;
-}(__entry_1.Action));
-var ExampleNamespace = (function (_super) {
-    __extends(ExampleNamespace, _super);
-    function ExampleNamespace() {
-        _super.call(this);
+
+}
+
+class Test extends Namespace{
+
+
+    constructor(){
+        super();
         this.action(TestAction);
     }
-    ExampleNamespace.prototype.getName = function () {
+
+    getName(){
         return "test";
-    };
-    return ExampleNamespace;
-}(__entry_1.Namespace));
-flood.registerNamespace(new ExampleNamespace());
-module.exports = flood;
+    }
+}
+
+flood.registerNamespace(new Test());
+
+module.exports = flood;*/ 

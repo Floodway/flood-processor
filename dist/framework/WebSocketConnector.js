@@ -2,6 +2,7 @@
 var __entry_1 = require("../__entry");
 var ws_1 = require("ws");
 var DownloadAction_1 = require("./DownloadAction");
+var ClientTokens_1 = require("./ClientTokens");
 var WebSocketConnection = (function () {
     function WebSocketConnection() {
     }
@@ -47,6 +48,19 @@ var WebSocketConnector = (function () {
         var connection = {
             socket: socket
         };
+        var clientTokens;
+        var tokens = {};
+        if (socket.upgradeReq.headers.hasOwnProperty("cookie")) {
+            var cookies = __entry_1.Cookie.parse(socket.upgradeReq.headers.cookie);
+            for (var _i = 0, _a = Object.keys(cookies); _i < _a.length; _i++) {
+                var name_1 = _a[_i];
+                tokens[name_1] = {
+                    value: cookies[name_1],
+                    expires: null
+                };
+            }
+            clientTokens = new ClientTokens_1.ClientTokens(tokens);
+        }
         var ssid = __entry_1.Cookie.parse(socket.upgradeReq.headers.cookie)["flood-ssid"];
         this.connections.push(connection);
         var clientId;
@@ -96,7 +110,7 @@ var WebSocketConnector = (function () {
                                         params: data.params.params,
                                         namespace: namespace.getName(),
                                         requestId: data.requestId,
-                                        sessionId: ssid,
+                                        clientTokens: clientTokens,
                                         sendData: function (data) {
                                             socket.send(JSON.stringify(data));
                                         }
@@ -112,7 +126,7 @@ var WebSocketConnector = (function () {
                                         catch (e) {
                                         }
                                         requests = requests.filter(function (item) {
-                                            return item.requestId != action_1.requestId;
+                                            return item.getRequestId() != action_1.getRequestId();
                                         });
                                     });
                                 }
@@ -140,7 +154,7 @@ var WebSocketConnector = (function () {
                             break;
                         case "cancelRequest":
                             var requestsFiltered = requests.filter(function (req) {
-                                return req.requestId == data.requestId;
+                                return req.getRequestId() == data.requestId;
                             });
                             for (var _i = 0, requestsFiltered_1 = requestsFiltered; _i < requestsFiltered_1.length; _i++) {
                                 var item = requestsFiltered_1[_i];
@@ -162,17 +176,11 @@ var WebSocketConnector = (function () {
         });
     };
     WebSocketConnector.prototype.verifyClient = function (info) {
-        if (info.req.headers.hasOwnProperty("cookie")) {
-            var cookies = __entry_1.Cookie.parse(info.req.headers.cookie);
-            if (cookies["flood-ssid"] != null &&
-                cookies["flood-ssid"].length == 36) {
-                if (this.config.allowedOrigins.length == 0 || this.config.allowedOrigins.indexOf("*") != -1) {
-                    return true;
-                }
-                if (this.config.allowedOrigins.indexOf(info.origin) != -1) {
-                    return true;
-                }
-            }
+        if (this.config.allowedOrigins.length == 0 || this.config.allowedOrigins.indexOf("*") != -1) {
+            return true;
+        }
+        if (this.config.allowedOrigins.indexOf(info.origin) != -1) {
+            return true;
         }
         return false;
     };

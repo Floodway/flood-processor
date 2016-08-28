@@ -1,12 +1,10 @@
 import {  Floodway, WebConnector, WebSocketConnector, Namespace, Action, WebAction, HttpMethod ,ObjectSchema, FileSchema } from "../__entry";
-import {StringSchema} from "../validator/StringSchema";
-import {NumberSchema} from "../validator/NumberSchema";
-import {ArraySchema} from "../validator/ArraySchema";
-import {DownloadAction} from "../framework/DownloadAction";
+import {SchemaMode, Schema, Str} from "flood-gate";
 import {BodyMode} from "../framework/BodyMode";
-
+import {Middleware} from "../framework/Middleware";
 
 let flood = new Floodway();
+
 
 let webConnector = new WebConnector({
     port: 4040,
@@ -15,121 +13,84 @@ let webConnector = new WebConnector({
 flood.registerConnector(webConnector);
 flood.registerConnector(new WebSocketConnector({
     server: webConnector.getServer(),
-    allowedOrigins: ["*"],
-    port: null
+    allowedOrigins: ["*"]
 }));
 
 
 
-class TestAction extends WebAction{
 
-    getHttpMethods(){
-        return [HttpMethod.POST]
-    }
 
-    getWebMetaData(){
-        return {
-            params: new ObjectSchema("TestParams").children({
-                items: new ArraySchema().child(new ObjectSchema("TestChild").children({
-                    meta: new ObjectSchema("meta").children({
-                        foo: new StringSchema(),
-                        bar: new StringSchema()
-                    }),
-                    bar: new StringSchema()
-                }))
-            }),
-            result: new ObjectSchema("TestActionResult").children({
-                time: new NumberSchema()
-            }),
-            errors: [],
-            middleware: [],
-            name: "test",
-            description: "Test action"
-        }
-    }
-    run(){
-        this.res({
-            time: Date.now()
-        })
-    }
+
+@Schema({ mode: SchemaMode.LOOSE })
+class TestParams{
+
+    @Str({ groups: ["exposed"] })
+    @Str({ groups: ["middleware"], toUpperCase: true })
+    name: string;
+}
+
+@Schema({ mode: SchemaMode.LOOSE })
+class TestResult{
+
+    @Str()
+    name: string;
 }
 
 
-class ExampleDownload extends DownloadAction{
+class TestMiddleware extends Middleware<TestParams>{
 
-
-    getName(){
-        return "download"
-    }
-
-    getParams(){
-        return new ObjectSchema("NoParams").children({})
-    }
+    getName(){ return "testMiddleware" }
+    getDescription(){ return "" }
+    getParamsClass(){  return TestParams }
+    getGroup(){ return "middleware" }
 
     run(){
-
-        this.res({
-            path: "C:\\im.jpg"
-        })
+        this.next()
     }
 
 }
 
-class ExampleUpload extends WebAction{
 
-    allowUploads(){
-        return true;
-    }
+class TestAction extends Action<TestParams,TestResult> implements WebAction{
 
-    getHttpMethods(){
-        return [HttpMethod.POST];
-    }
+    getUrl(){ return "/test" }
+    getHttpMethods(){ return [HttpMethod.GET] }
+    getBodyMode(){ return BodyMode.JSON }
+    useNamespaceRouter(){ return true }
 
-    getBodyMode(){
-        return BodyMode.UrlEncoded;
-    }
+    getParamsClass(){ return  TestParams }
+    getGroup(){ return "exposed" }
+    getMiddleware(){ return [new TestMiddleware()] }
+    getResultClass(){ return  TestResult }
 
-    getWebMetaData(){
-        return {
-            name: "upload",
-            description: "Uploads a file",
-            result: new ObjectSchema("NoRes").children({}),
-            params: new ObjectSchema("ExampleUploadParamsProcessed").children({
-                file: FileSchema
-            }),
-            exposeParams: new ObjectSchema("ExampleUploadParams").children({
-                file: new StringSchema()
-            }),
-            errors: [],
-            middleware: []
-        }
-    }
+    getName() { return "testAction" }
+    getDescription(){ return "Does something!" }
 
     run(){
-        console.log(this.params);
-        this.res({});
+
+        let result = new TestResult();
+
+        result.name = this.getParams().name;
+
+        this.res(result);
+
     }
-
-
 
 }
 
-class ExampleNamespace extends Namespace{
+class Test extends Namespace{
 
-    getName(){
-        return "test"
-    }
 
     constructor(){
         super();
         this.action(TestAction);
-        this.action(ExampleDownload);
-        this.action(ExampleUpload);
     }
 
+    getName(){
+        return "test";
+    }
 }
 
-flood.registerNamespace(new ExampleNamespace());
-
+flood.registerNamespace(new Test());
 
 module.exports = flood;

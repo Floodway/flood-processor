@@ -6,7 +6,7 @@ var __extends = (this && this.__extends) || function (d, b) {
 };
 var _ = require("lodash");
 var events_1 = require("events");
-var ObjectSchema_1 = require("../validator/ObjectSchema");
+var flood_gate_1 = require("flood-gate");
 var defaultErrors = [
     {
         errorCode: "internalError",
@@ -26,73 +26,82 @@ var Action = (function (_super) {
     function Action() {
         _super.call(this);
     }
-    Action.prototype.makeClassName = function (input) {
-        return input.charAt(0).toUpperCase() + input.slice(1);
+    Action.prototype.toJson = function () {
+        return {
+            name: this.getName(),
+            description: this.getDescription(),
+            middleware: this.getAllMiddleware().map(function (middleware) { return middleware.toJSON(); }),
+            errors: this.getPossibleErrors()
+        };
     };
-    Action.prototype.getParamsName = function () {
-        var params = this.getMetaData().params;
-        if (ObjectSchema_1.ObjectSchema.isObjectSchema(params)) {
-            params.getClassName();
-        }
-        else {
-            return this.makeClassName(this.getMetaData().name) + "Params";
-        }
+    Action.prototype.getNamespace = function () { return this.namespace; };
+    Action.prototype.setNamespace = function (namespace) {
+        this.namespace = namespace;
     };
-    Action.prototype.getResultName = function () {
-        var result = this.getMetaData().result;
-        if (ObjectSchema_1.ObjectSchema.isObjectSchema(result)) {
-            result.getClassName();
-        }
-        else {
-            return this.makeClassName(this.getMetaData().name) + "Result";
-        }
+    Action.prototype.getRequestId = function () { return this.requestId; };
+    Action.prototype.getRedis = function () { return this.redis; };
+    Action.prototype.getMiddleware = function () {
+        return [];
+    };
+    Action.prototype.ignoreNamespaceMiddleware = function () { return false; };
+    Action.prototype.getParams = function () { return this.params; };
+    Action.prototype.getErrors = function () { return []; };
+    Action.prototype.supportsUpdates = function () {
+        return false;
+    };
+    Action.prototype.getGroup = function () {
+        return null;
+    };
+    Action.prototype.setParams = function (params) {
+        this.params = flood_gate_1.SchemaStore.populateSchema(this.getParamsClass(), params, this.getGroup());
     };
     Action.prototype.populate = function (params, floodway) {
         this.sendData = params.sendData;
-        this.params = params.params;
-        this.sessionId = params.sessionId;
+        this.paramsRaw = params.params;
+        this.clientTokens = params.clientTokens;
         this.processedMiddleware = -1;
         this.requestId = params.requestId;
         this.namespace = floodway.getNamespace(params.namespace);
-        this.middleware = this.namespace.getMiddleware().concat(this.getMetaData().middleware);
         this.redis = params.listensForEvents ? floodway.getRedisEvent() : floodway.getRedis();
-        if (this.middleware.length != 0) {
+        if (this.getAllMiddleware().length != 0) {
             this.nextMiddleware();
         }
         else {
             this.execute();
         }
     };
+    Action.prototype.getAllMiddleware = function () {
+        var middleware = [];
+        if (!this.ignoreNamespaceMiddleware()) {
+            middleware = middleware.concat(this.getNamespace().getMiddleware());
+        }
+        middleware = middleware.concat(this.getMiddleware());
+        return middleware;
+    };
     Action.prototype.getPossibleErrors = function () {
         var middlewareErrors = [];
-        this.middleware.map(function (middleware) {
-            var errs = middleware.getMetaData().errors.map(function (err) {
-                err.source = middleware.getMetaData().name;
-                return err;
-            });
-            middlewareErrors = middlewareErrors.concat(errs);
+        this.getAllMiddleware().map(function (middleware) {
+            middlewareErrors = middlewareErrors.concat(middleware.getErrors().map(function (err) { err.source = middleware.getName(); return err; }));
         });
-        return defaultErrors.concat(this.getMetaData().errors).concat(middlewareErrors);
+        return defaultErrors.concat(this.getErrors()).concat(middlewareErrors);
     };
     Action.prototype.execute = function () {
         var _this = this;
-        this.getMetaData().params.validate(this.params, function (err, result) {
+        flood_gate_1.SchemaStore.validate(this.params, function (err, res) {
+            _this.params = res;
             if (err != null) {
-                _this.fail("invalidParams", err);
+                return _this.fail("invalidParams", JSON.stringify(err));
             }
-            else {
-                _this.params = result;
-                _this.run();
-            }
-        }, "root(ActionParams)");
+            _this.run();
+        });
     };
     Action.prototype.nextMiddleware = function () {
         this.processedMiddleware++;
-        if (this.processedMiddleware == this.middleware.length) {
+        if (this.processedMiddleware == this.getAllMiddleware().length) {
             this.execute();
         }
         else {
-            this.middleware[this.processedMiddleware].execute(this);
+            this.getAllMiddleware()[this.processedMiddleware].execute(this);
         }
     };
     Action.prototype.done = function () {
@@ -101,7 +110,7 @@ var Action = (function (_super) {
     Action.prototype.res = function (data, final) {
         var _this = this;
         if (final === void 0) { final = false; }
-        this.getMetaData().result.validate(data, function (err, res) {
+        flood_gate_1.SchemaStore.validate(data, function (err, res) {
             if (err != null) {
                 _this.fail("invalidResult", err);
             }
@@ -112,10 +121,10 @@ var Action = (function (_super) {
                     params: res
                 });
             }
-            if (!_this.getMetaData().supportsUpdates || final) {
-                _this.emit("done");
-            }
-        }, "root(ActionResult)");
+        });
+        if (!this.supportsUpdates() || final) {
+            this.emit("done");
+        }
     };
     Action.prototype.fail = function (errorCode, additionalData) {
         var possibleErrors = this.getPossibleErrors();

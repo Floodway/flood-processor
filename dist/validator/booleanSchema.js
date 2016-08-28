@@ -15,6 +15,9 @@ var BooleanSchema = (function (_super) {
             type: "boolean"
         };
     };
+    BooleanSchema.isBooleanSchema = function (input) {
+        return input.toJSON().type == "boolean";
+    };
     BooleanSchema.prototype.validate = function (data, callback, path) {
         if (path === void 0) { path = "root"; }
         var item = data == true;

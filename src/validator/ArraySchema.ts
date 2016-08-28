@@ -12,6 +12,10 @@ export class ArraySchema extends Type{
         return true;
 
     }
+
+    static isArraySchema(input: Type): input is ArraySchema{
+        return input.toJSON().type == "array";
+    }
     
     toJSON(){
         return {

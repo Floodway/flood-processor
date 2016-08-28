@@ -45,7 +45,6 @@ export class AsyncGroup{
 
             current((err: any,res: any) =>{
               if(err != null){
-                  err.index = done;
                   if(this.breakOnError){
                       this.callback(err,null);
                       return;

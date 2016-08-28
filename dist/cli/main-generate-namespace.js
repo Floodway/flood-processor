@@ -58,5 +58,10 @@ inquirer.prompt({
         fs.mkdirSync(path.join(newDir, "middleware"));
         var file = "\nimport { Namespace } from \"floodway\";\n\nexport default class " + makeClassName(namespaceName) + " extends Namespace{\n    \n    constructor(){\n        super();\n        //Add actions here. Keep the INSERT comment to allow automatic adding using flood generate-action\n        //INSERT\n    }\n    getName(){\n        return \"" + namespaceName + "\";\n    }\n}\n";
         fs.writeFileSync(path.join(newDir, "namespace.ts"), file);
+        var index = fs.readFileSync(path.join(rootDir, "./index.ts")).toString();
+        index = index.replace("//INSERT", "flood.registerNamespace(" + makeClassName(namespaceName) + "); \n //INSERT");
+        var split = index.split("\n");
+        split.unshift("import " + makeClassName(namespaceName) + " from \"./namespaces/" + namespaceName + "/namespace\";");
+        fs.writeFileSync(path.join(rootDir, "./index.ts"), split.join("\n"));
     }
 });

@@ -23,7 +23,6 @@ var AsyncGroup = (function () {
             var current = _this.runnables[done];
             current(function (err, res) {
                 if (err != null) {
-                    err.index = done;
                     if (_this.breakOnError) {
                         _this.callback(err, null);
                         return;

@@ -1,14 +1,6 @@
 {
     "files": [
         "./src/__entry.ts",
-        "./src/cli/main.ts",
-        "./src/cli/main-generate-json.ts",
-        "./src/cli/main-serve-json.ts",
-        "./src/cli/main-generate-java.ts",
-        "./src/cli/main-generate-action.ts",
-        "./src/cli/main-generate-namespace",
-        "./src/cli/main-dev.ts",
-        "./src/cli/main-init.ts",
         "./src/example/example.ts",
         "./typings/index.d.ts"
     ],

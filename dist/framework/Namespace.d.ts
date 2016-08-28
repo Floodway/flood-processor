@@ -3,7 +3,7 @@ export declare abstract class Namespace {
     actions: {
         [path: string]: IAction;
     };
-    getMiddleware(): Middleware[];
+    getMiddleware(): Middleware<any>[];
     constructor();
     start(instance: Floodway): void;
     getRootUrl(): string;

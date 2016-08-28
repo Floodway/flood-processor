@@ -1,6 +1,6 @@
 // Framework
 export { Middleware } from "./framework/Middleware";
-export { Action, IAction, ActionParams, ActionMeta } from "./framework/Action";
+export { Action, ActionParams, IAction } from "./framework/Action";
 export { Connector, ConnectorMeta } from "./framework/Connector";
 export { Err } from "./framework/Err";
 export { WebAction } from "./framework/WebAction";

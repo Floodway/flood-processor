@@ -16,6 +16,10 @@ export class NumberSchema extends Type{
         return false;
     }
 
+    static isNumberSchema(input: Type): input is NumberSchema{
+        return input.toJSON().type == "number";
+    }
+
     toJSON(){
         return {
             type: "number",

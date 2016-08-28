@@ -4,6 +4,7 @@ export declare class ArraySchema extends Type {
     private childrenT;
     private childrenLT;
     hasChildren(): boolean;
+    static isArraySchema(input: Type): input is ArraySchema;
     toJSON(): {
         type: string;
         mode: String;

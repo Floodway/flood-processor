@@ -13,6 +13,9 @@ var NumberSchema = (function (_super) {
     NumberSchema.prototype.hasChildren = function () {
         return false;
     };
+    NumberSchema.isNumberSchema = function (input) {
+        return input.toJSON().type == "number";
+    };
     NumberSchema.prototype.toJSON = function () {
         return {
             type: "number",

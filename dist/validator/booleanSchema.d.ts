@@ -4,6 +4,7 @@ export declare class BooleanSchema extends Type {
     toJSON(): {
         type: string;
     };
+    static isBooleanSchema(input: Type): input is BooleanSchema;
     validate(data: any, callback: {
         (err: any, res: boolean): void;
     }, path?: string): void;

@@ -6,7 +6,7 @@ export abstract class Namespace{
     // stores all actions of this namespace
     public actions: { [path:string]:IAction };
 
-    getMiddleware(): Middleware[]{
+    getMiddleware(): Middleware<any>[]{
         return [];
     }
 
@@ -39,7 +39,7 @@ export abstract class Namespace{
 
         let temp = new action();
 
-        this.actions[temp.getMetaData().name] = action;
+        this.actions[temp.getName()] = action;
     }
 
     // get the name of this namespace

@@ -17,6 +17,7 @@ export declare class StringSchema extends Type {
         uppercase: boolean;
         lowercase: boolean;
     };
+    static isStringSchema(input: Type): input is StringSchema;
     validate(data: any, callback: {
         (err: any, res: string): void;
     }, path?: string): void;

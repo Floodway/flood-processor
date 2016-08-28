@@ -10,6 +10,10 @@ export class BooleanSchema extends Type{
         }
     }
 
+    static isBooleanSchema(input: Type): input is BooleanSchema{
+        return input.toJSON().type == "boolean";
+    }
+
     validate(data: any,callback: { (err: any,res: boolean): void },path="root"){
         let item = data == true;
 

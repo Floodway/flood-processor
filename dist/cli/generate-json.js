@@ -2,12 +2,34 @@
 "use strict";
 var fs = require("fs");
 var path = require("path");
-var __entry_1 = require("../__entry");
-function isWebAction(action) {
-    return action.getWebConfig !== undefined;
+var chalk = require("chalk");
+var Utils = require("./utils");
+function findRoot() {
+    var currentPath = process.cwd();
+    while (true) {
+        if (fs.existsSync(path.join(currentPath, "./package.json"))) {
+            return currentPath;
+        }
+        else {
+            currentPath = path.join(currentPath, "../");
+        }
+    }
 }
-function isAction(action) {
-    return action.getMetaData !== undefined;
+;
+var rootDir = findRoot();
+console.log(chalk.red("Generating the documentation only works if the Project follows the Flood design specs!"));
+var main = require(require(path.join(rootDir, "./package.json")["main"]));
+var result;
+if (main != null) {
+    result = {
+        version: packageJson.version,
+        connectors: main.getConnectors().map(function (item) { return item.getMeta(); }),
+    };
+    var namespaces = Utils.getDirectories(path.join(rootDir, "./src/namespaces"));
+    console.log(chalk.green("Found " + namespaces.length + " namespaces!"));
+    for (var _i = 0, namespaces_1 = namespaces; _i < namespaces_1.length; _i++) {
+        var namespaceDir = namespaces_1[_i];
+    }
 }
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = function (main, packageJson, writeToFile) {
@@ -20,94 +42,26 @@ exports.default = function (main, packageJson, writeToFile) {
                 var namespaceName = _a[_i];
                 var namespace = namespaces[namespaceName];
                 var actions = [];
-                var _loop_1 = function(key) {
-                    var actionI = namespace.getActions()[key];
-                    var action = new actionI();
-                    var meta = void 0;
-                    var webStuff = void 0;
-                    if (isAction(action)) {
-                        meta = action.getMetaData();
-                    }
-                    if (isWebAction(action)) {
-                        var res_1 = {
-                            methods: [],
-                            path: action.getUrl(),
-                            bodyMode: action.getBodyMode() == __entry_1.BodyMode.JSON ? "JSON" : "UrlEncoded"
-                        };
-                        action.getHttpMethods().map(function (method) {
-                            switch (method) {
-                                case __entry_1.HttpMethod.DELETE:
-                                    res_1.methods.push("DELETE");
-                                    break;
-                                case __entry_1.HttpMethod.GET:
-                                    res_1.methods.push("GET");
-                                    break;
-                                case __entry_1.HttpMethod.PATCH:
-                                    res_1.methods.push("PATH");
-                                    break;
-                                case __entry_1.HttpMethod.POST:
-                                    res_1.methods.push("POST");
-                                    break;
-                                case __entry_1.HttpMethod.HEAD:
-                                    res_1.methods.push("HEAD");
-                                    break;
-                            }
-                        });
-                        webStuff = res_1;
-                    }
-                    if (isAction(action)) {
-                        actions.push({
-                            name: meta.name,
-                            description: meta.description,
-                            middleware: meta.middleware.map(function (item) {
-                                var res = item.getMetaData();
-                                res.params = {
-                                    schema: res.params.toJSON(),
-                                    name: item.getParamsName()
-                                };
-                                return res;
-                            }),
-                            possibleErrors: meta.errors,
-                            supportsUpdates: meta.supportsUpdates,
-                            webConfig: webStuff,
-                            params: {
-                                schema: meta.params.toJSON(),
-                                name: action.getParamsName()
-                            },
-                            result: {
-                                schema: meta.result.toJSON(),
-                                name: action.getResultName()
-                            }
-                        });
-                    }
-                };
                 for (var _b = 0, _c = Object.keys(namespace.getActions()); _b < _c.length; _b++) {
                     var key = _c[_b];
-                    _loop_1(key);
+                    var actionI = namespace.getActions()[key];
+                    var action = new actionI();
+                    action.setNamespace(namespace);
+                    actions.push(action.toJson());
+                    console.log(action.toJson().params);
                 }
                 namespaceResult.push({
                     name: namespace.getName(),
-                    middleware: namespace.getMiddleware().map(function (item) {
-                        var res = item.getMetaData();
-                        res.params = {
-                            schema: res.params.toJSON(),
-                            name: item.getParamsName()
-                        };
-                        return res;
-                    }),
                     actions: actions,
                 });
             }
-            var result = {
-                version: packageJson.version,
-                connectors: main.getConnectors().map(function (item) { return item.getMeta(); }),
-                applicationConfig: packageJson.floodConfig,
+            var result_1 = {
                 namespaces: namespaceResult,
             };
             if (writeToFile == true) {
-                fs.writeFileSync(path.join(process.cwd(), "./config.json"), JSON.stringify(result));
+                fs.writeFileSync(path.join(process.cwd(), "./config.json"), JSON.stringify(result_1));
             }
-            return JSON.stringify(result);
+            return JSON.stringify(result_1);
         }
     }
 };
